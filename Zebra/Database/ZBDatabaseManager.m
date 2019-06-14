@@ -102,6 +102,9 @@
     const char *error = sqlite3_errmsg(database);
     if (error) {
         NSLog(@"[Zebra] Database Error: %s", error);
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Database Error" message:[NSString stringWithFormat:@"The error is: %s\nThis should never happen and if you see this alert, please contact the developers.", error] preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:NULL]];
+        [UIApplication.sharedApplication.keyWindow.rootViewController presentViewController:alert animated:YES completion:NULL];
     }
 }
 
