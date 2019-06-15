@@ -297,7 +297,6 @@
                 NSLog(@"[Zebra] I already checking %@, skipping", [package identifier]);
                 continue;
             }
-            BOOL packageIgnoreUpdates = [package ignoreUpdates];
             
             ZBPackage *topPackage = [self topVersionForPackage:package];
             NSComparisonResult compare = [package compare:topPackage];
@@ -322,6 +321,7 @@
             }
             else if (compare == NSOrderedSame) {
                 NSString *query;
+                BOOL packageIgnoreUpdates = [package ignoreUpdates];
                 if (packageIgnoreUpdates)
                     // This package has no update and the user actively ignores updates from it, we update the latest version here
                     query = [NSString stringWithFormat:@"REPLACE INTO UPDATES(PACKAGE, VERSION, IGNORE) VALUES(\'%@\', \'%@\', 1);", [package identifier], [package version]];
@@ -643,10 +643,10 @@
     }
 }
 
-- (NSMutableArray <ZBPackage *>*)packagesWithUpdatesIncludingIgnored:(BOOL)ignored {
+- (NSMutableArray <ZBPackage *> *)packagesWithIgnoredUpdates {
     if ([self openDatabase] == SQLITE_OK) {
         NSMutableArray *packagesWithUpdates = [NSMutableArray new];
-        NSString *query = @"SELECT * FROM UPDATES;";
+        NSString *query = @"SELECT * FROM UPDATES WHERE IGNORE = 1;";
         
         sqlite3_stmt *statement;
         if (sqlite3_prepare_v2(database, [query UTF8String], -1, &statement, nil) == SQLITE_OK) {
@@ -654,11 +654,48 @@
                 const char *identifierChars = (const char *)sqlite3_column_text(statement, ZBUpdateColumnID);
                 const char *versionChars = (const char *)sqlite3_column_text(statement, ZBUpdateColumnVersion);
                 NSString *identifier = [NSString stringWithUTF8String:identifierChars];
-                if ((ignored || sqlite3_column_int(statement, ZBUpdateColumnIgnore) == 0) && versionChars != 0) {
+                if (versionChars != 0) {
                     NSString *version = [NSString stringWithUTF8String:versionChars];
                     
                     ZBPackage *package = [self packageForID:identifier equalVersion:version];
-                    if (package != NULL) [packagesWithUpdates addObject:package];
+                    if (package != NULL) {
+                        [packagesWithUpdates addObject:package];
+                    }
+                }
+            }
+        }
+        else {
+            [self printDatabaseError];
+        }
+        sqlite3_finalize(statement);
+        
+        [self closeDatabase];
+        return packagesWithUpdates;
+    }
+    else {
+        [self printDatabaseError];
+        return NULL;
+    }
+}
+
+- (NSMutableArray <ZBPackage *> *)packagesWithUpdates {
+    if ([self openDatabase] == SQLITE_OK) {
+        NSMutableArray *packagesWithUpdates = [NSMutableArray new];
+        NSString *query = @"SELECT * FROM UPDATES WHERE IGNORE = 0;";
+        
+        sqlite3_stmt *statement;
+        if (sqlite3_prepare_v2(database, [query UTF8String], -1, &statement, nil) == SQLITE_OK) {
+            while (sqlite3_step(statement) == SQLITE_ROW) {
+                const char *identifierChars = (const char *)sqlite3_column_text(statement, ZBUpdateColumnID);
+                const char *versionChars = (const char *)sqlite3_column_text(statement, ZBUpdateColumnVersion);
+                NSString *identifier = [NSString stringWithUTF8String:identifierChars];
+                if (versionChars != 0) {
+                    NSString *version = [NSString stringWithUTF8String:versionChars];
+                    
+                    ZBPackage *package = [self packageForID:identifier equalVersion:version];
+                    if (package != NULL && [upgradePackageIDs containsObject:package.identifier]) {
+                        [packagesWithUpdates addObject:package];
+                    }
                 }
                 else if ([upgradePackageIDs containsObject:identifier]) {
                     [upgradePackageIDs removeObject:identifier];
@@ -677,10 +714,6 @@
         [self printDatabaseError];
         return NULL;
     }
-}
-
-- (NSMutableArray <ZBPackage *>*)packagesWithUpdates {
-    return [self packagesWithUpdatesIncludingIgnored:NO];
 }
 
 - (NSArray <ZBPackage *> *)searchForPackageName:(NSString *)name numberOfResults:(int)results {
