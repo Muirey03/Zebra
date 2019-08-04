@@ -55,6 +55,7 @@
 		493C3241227A905800603FB9 /* ZBPackageTableViewCell.xib in Resources */ = {isa = PBXBuildFile; fileRef = 493C323F227A905800603FB9 /* ZBPackageTableViewCell.xib */; };
 		49C526EE227BCF1700840484 /* ZBRepoTableViewCell.m in Sources */ = {isa = PBXBuildFile; fileRef = 49C526ED227BCF1700840484 /* ZBRepoTableViewCell.m */; };
 		49E1304622715DB8006F450A /* UIColor+GlobalColors.m in Sources */ = {isa = PBXBuildFile; fileRef = 49E1304522715DB8006F450A /* UIColor+GlobalColors.m */; };
+		6582A70222F7487300E0BCA5 /* libapt in Resources */ = {isa = PBXBuildFile; fileRef = 6582A70122F7487300E0BCA5 /* libapt */; };
 		7821AF6F2275F3A4006C0315 /* ZBAddRepoViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 7821AF6D2275F3A4006C0315 /* ZBAddRepoViewController.m */; };
 		8900FA502201E9C200476310 /* ZBQueueViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 8900FA4F2201E9C200476310 /* ZBQueueViewController.m */; };
 		89159FB021F8E5FD0012C8FE /* ZBPackageDepictionViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 89159FAF21F8E5FD0012C8FE /* ZBPackageDepictionViewController.m */; };
@@ -202,6 +203,7 @@
 		49C526ED227BCF1700840484 /* ZBRepoTableViewCell.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = ZBRepoTableViewCell.m; sourceTree = "<group>"; };
 		49E1304522715DB8006F450A /* UIColor+GlobalColors.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = "UIColor+GlobalColors.m"; sourceTree = "<group>"; };
 		49E1304722715EE5006F450A /* UIColor+GlobalColors.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "UIColor+GlobalColors.h"; sourceTree = "<group>"; };
+		6582A70122F7487300E0BCA5 /* libapt */ = {isa = PBXFileReference; lastKnownFileType = folder; path = libapt; sourceTree = "<group>"; };
 		7821AF6D2275F3A4006C0315 /* ZBAddRepoViewController.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = ZBAddRepoViewController.m; sourceTree = "<group>"; };
 		7821AF6E2275F3A4006C0315 /* ZBAddRepoViewController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ZBAddRepoViewController.h; sourceTree = "<group>"; };
 		7821AF702275F3B2006C0315 /* ZBAddRepoDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ZBAddRepoDelegate.h; sourceTree = "<group>"; };
@@ -594,6 +596,7 @@
 		89C5FDD421B1B13700A10E58 = {
 			isa = PBXGroup;
 			children = (
+				6582A70122F7487300E0BCA5 /* libapt */,
 				89C5FDDF21B1B13700A10E58 /* Zebra */,
 				89C5FDDE21B1B13700A10E58 /* Products */,
 				89E8633B21D5A8C00081E485 /* Frameworks */,
@@ -885,6 +888,7 @@
 				89E8638221D5AFAA0081E485 /* home.html in Resources */,
 				36AC5A6C22AB30E4004C2332 /* zWhite@3x.png in Resources */,
 				D1BF9C7422A826BF00DD9266 /* stores@2x.png in Resources */,
+				6582A70222F7487300E0BCA5 /* libapt in Resources */,
 				D1BF9C7522A826BF00DD9266 /* stores@3x.png in Resources */,
 				36F77AE222A33EDF00A4604C /* darkZebraSkin@2x.png in Resources */,
 				89E8637E21D5AFAA0081E485 /* package_depiction.html in Resources */,
@@ -1097,11 +1101,12 @@
 		89C5FDF421B1B13800A10E58 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = FNYH7RRK6K;
-				ENABLE_BITCODE = YES;
+				ENABLE_BITCODE = NO;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)",
@@ -1118,10 +1123,15 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/**",
+				);
 				PACKAGE_VERSION = "'@\"Internal\"'";
 				PRODUCT_BUNDLE_IDENTIFIER = xyz.willy.Zebra;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
+				REEXPORTED_LIBRARY_NAMES = "apt-pkg";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -1129,11 +1139,12 @@
 		89C5FDF521B1B13800A10E58 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = FNYH7RRK6K;
-				ENABLE_BITCODE = YES;
+				ENABLE_BITCODE = NO;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)",
@@ -1146,10 +1157,15 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/**",
+				);
 				PACKAGE_VERSION = "'@\"Internal\"'";
 				PRODUCT_BUNDLE_IDENTIFIER = xyz.willy.Zebra;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
+				REEXPORTED_LIBRARY_NAMES = "apt-pkg";
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;

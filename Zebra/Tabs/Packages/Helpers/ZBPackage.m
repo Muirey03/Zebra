@@ -206,7 +206,7 @@
 
 - (id)initWithIdentifier:(NSString *)identifier name:(NSString *)name version:(NSString *)version description:(NSString *)desc section:(NSString *)section depictionURL:(NSString *)url {
     
-    self = [super init];
+    self = [self init];
     
     if (self) {
         [self setIdentifier:identifier];
@@ -215,6 +215,8 @@
         [self setShortDescription:desc];
         [self setSection:section];
         [self setDepictionURL:[NSURL URLWithString:url]];
+        
+        [self sharedInit];
     }
     
     return self;
@@ -243,7 +245,7 @@
 }
 
 - (id)initWithSQLiteStatement:(sqlite3_stmt *)statement {
-    self = [super init];
+    self = [self init];
     
     if (self) {
         const char *packageIDChars =        (const char *)sqlite3_column_text(statement, ZBPackageColumnPackage);
@@ -299,9 +301,15 @@
         }
         [self setSectionImageName:sectionStripped];
         [self setLastSeenDate:lastSeen ? [NSDate dateWithTimeIntervalSince1970:lastSeen] : NULL];
+    
+        [self sharedInit];
     }
     
     return self;
+}
+
+- (void)sharedInit {
+    
 }
 
 - (BOOL)isEqual:(ZBPackage *)object {

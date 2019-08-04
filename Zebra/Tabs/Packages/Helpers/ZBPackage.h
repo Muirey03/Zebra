@@ -40,6 +40,7 @@ NS_ASSUME_NONNULL_BEGIN
 + (BOOL)containsApp:(NSString *)packageID;
 + (NSString *)pathForApplication:(NSString *)packageID;
 - (id)initWithSQLiteStatement:(sqlite3_stmt *)statement;
+- (void)sharedInit;
 - (NSComparisonResult)compare:(id)object;
 - (BOOL)sameAs:(ZBPackage *)package;
 - (BOOL)sameAsStricted:(ZBPackage *)package;
