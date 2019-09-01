@@ -8,6 +8,7 @@
 
 #import <ZBDevice.h>
 #import <ZBAppDelegate.h>
+#import <ZBSettings.h>
 #import "ZBSearchViewController.h"
 #import <Packages/Controllers/ZBPackageDepictionViewController.h>
 #import <Database/ZBDatabaseManager.h>
@@ -21,7 +22,7 @@
     ZBDatabaseManager *databaseManager;
     NSArray *results;
     BOOL searching;
-    id<UIViewControllerPreviewing> previewing;
+    id <UIViewControllerPreviewing> previewing;
     NSMutableArray *recentSearches;
 }
 @end
@@ -112,8 +113,7 @@ enum ZBSearchSection {
             searchController = [[UISearchController alloc] initWithSearchResultsController:nil];
         }
         [searchController.searchBar becomeFirstResponder];
-    }
-    else {
+    } else {
         NSArray *path = [url pathComponents];
         if ([path count] == 2) {
             if (!databaseManager) {
@@ -134,10 +134,12 @@ enum ZBSearchSection {
 #pragma mark - UISearchBarDelegate
 
 - (void)searchBar:(UISearchBar *)searchBar textDidChange:(NSString *)searchText {
+    if (![[NSUserDefaults standardUserDefaults] boolForKey:liveSearchKey]) {
+        return;
+    }
     if (searchText.length) {
         results = [databaseManager searchForPackageName:searchText numberOfResults:60];
-    }
-    else {
+    } else {
         results = nil;
     }
     [self refreshTable];
@@ -355,11 +357,7 @@ enum ZBSearchSection {
 }
 
 - (UIStatusBarStyle)preferredStatusBarStyle {
-    if ([ZBDevice darkModeEnabled]) {
-        return UIStatusBarStyleLightContent;
-    } else {
-        return UIStatusBarStyleDefault;
-    }
+    return [ZBDevice darkModeEnabled] ? UIStatusBarStyleLightContent : UIStatusBarStyleDefault;
 }
 
 @end

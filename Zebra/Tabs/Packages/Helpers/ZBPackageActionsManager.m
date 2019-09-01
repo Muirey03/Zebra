@@ -7,6 +7,7 @@
 //
 
 #import "ZBPackageActionsManager.h"
+#import <ZBAppDelegate.h>
 #import <Packages/Helpers/ZBPackage.h>
 #import <Packages/Views/ZBPackageTableViewCell.h>
 #import <Packages/Controllers/ZBPackageDepictionViewController.h>
@@ -26,19 +27,7 @@
 }
 
 + (void)presentQueue:(UIViewController *)vc parent:(UIViewController *)parent {
-    UIStoryboard *storyboard = [UIStoryboard storyboardWithName:@"Main" bundle: nil];
-    UINavigationController *qvc = [storyboard instantiateViewControllerWithIdentifier:@"queueController"];
-    
-    if (vc.navigationController == NULL && parent != NULL) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [parent presentViewController:qvc animated:true completion:nil];
-        });
-    }
-    else {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [vc presentViewController:qvc animated:true completion:nil];
-        });
-    }
+    [[ZBAppDelegate tabBarController] openQueueBar:YES];
 }
 
 + (BOOL)canHaveAction:(NSUInteger)possibleActions forPackage:(ZBPackage *)package queue:(ZBQueueType)q {
@@ -105,11 +94,9 @@
             return ^(void) {
                 if (q == ZBQueueTypeSelectable) {
                     [self selectVersionForPackage:package indexPath:indexPath viewController:vc parent:parent];
-                }
-                else if (q == ZBQueueTypeClear) {
+                } else if (q == ZBQueueTypeClear) {
                     [queue removePackage:package fromQueue:0];
-                }
-                else {
+                } else {
                     [queue addPackage:package toQueue:q];
                 }
                 
@@ -128,14 +115,11 @@
                 if (q == ZBQueueTypeInstall) {
                     BOOL purchased = [vc respondsToSelector:@selector(purchased)] ? [(ZBPackageDepictionViewController *)vc purchased] : NO;
                     [self installPackage:package purchased:purchased];
-                }
-                else if (q == ZBQueueTypeSelectable) {
+                } else if (q == ZBQueueTypeSelectable) {
                     [self selectVersionForPackage:package indexPath:nil viewController:vc parent:parent];
-                }
-                else if (q == ZBQueueTypeClear) {
+                } else if (q == ZBQueueTypeClear) {
                     [queue removePackage:package fromQueue:0];
-                }
-                else {
+                } else {
                     [queue addPackage:package toQueue:q];
                 }
             };
@@ -146,14 +130,11 @@
                     BOOL purchased = [vc respondsToSelector:@selector(purchased)] ? [(ZBPackageDepictionViewController *)vc purchased] : NO;
                     [self installPackage:package purchased:purchased];
                     [self presentQueue:vc parent:parent];
-                }
-                else if (q == ZBQueueTypeSelectable) {
+                } else if (q == ZBQueueTypeSelectable) {
                     [self selectVersionForPackage:package indexPath:nil viewController:vc parent:parent];
-                }
-                else if (q == ZBQueueTypeClear) {
+                } else if (q == ZBQueueTypeClear) {
                     [queue removePackage:package fromQueue:0];
-                }
-                else {
+                } else {
                     [queue addPackage:package toQueue:q];
                     [self presentQueue:vc parent:parent];
                 }
@@ -195,18 +176,32 @@
     
     if ([package ignoreUpdates]) {
         UIAlertAction *unignore = [UIAlertAction actionWithTitle:@"Show Updates" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
-            [package setIgnoreUpdates:false];
+            [package setIgnoreUpdates:NO];
         }];
         
         [actions addObject:unignore];
-    }
-    else {
+    } else {
         UIAlertAction *ignore = [UIAlertAction actionWithTitle:@"Ignore Updates" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
-            [package setIgnoreUpdates:true];
+            [package setIgnoreUpdates:YES];
         }];
         
         [actions addObject:ignore];
     }
+    
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSMutableArray *wishList = [[defaults objectForKey:@"wishList"] mutableCopy] ?: [NSMutableArray new];
+    BOOL inWishList = [wishList containsObject:package.identifier];
+    UIAlertAction *wish = [UIAlertAction actionWithTitle:inWishList ? @"Remove from Wish List" : @"Add to Wish List" style:UIAlertActionStyleDefault handler:^(UIAlertAction * _Nonnull action) {
+        if (inWishList) {
+            [wishList removeObject:package.identifier];
+            [defaults setObject:wishList forKey:@"wishList"];
+        } else {
+            [wishList addObject:package.identifier];
+            [defaults setObject:wishList forKey:@"wishList"];
+        }
+        [defaults synchronize];
+    }];
+    [actions addObject:wish];
     
     UIAlertAction *cancel = [UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:NULL];
     [actions addObject:cancel];
@@ -224,7 +219,7 @@
 }
 
 + (void)selectVersionForPackage:(ZBPackage *)package indexPath:(NSIndexPath *)indexPath viewController:(UIViewController *)vc parent:(UIViewController *)parent {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:[NSString stringWithFormat:@"Select Version: %@ (%@)", [package name], [package version]] message:nil preferredStyle:UIAlertControllerStyleActionSheet];
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:[NSString stringWithFormat:@"Select Version: %@ (%@)", package.name, package.version] message:nil preferredStyle:UIAlertControllerStyleActionSheet];
     
     for (ZBPackage *otherPackage in [package otherVersions]) {
         
@@ -244,12 +239,11 @@
         ZBPackageTableViewCell *cell = [((UITableViewController *)vc).tableView cellForRowAtIndexPath:indexPath];
         alert.popoverPresentationController.sourceView = cell;
         alert.popoverPresentationController.sourceRect = cell.bounds;
-    }
-    else {
+    } else {
         alert.popoverPresentationController.barButtonItem = vc.navigationItem.rightBarButtonItem;
     }
     
-    [vc presentViewController:alert animated:true completion:nil];
+    [vc presentViewController:alert animated:YES completion:nil];
 }
 
 @end

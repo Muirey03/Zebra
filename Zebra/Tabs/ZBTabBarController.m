@@ -15,13 +15,16 @@
 #import <UITabBarItem.h>
 #import <Database/ZBRefreshViewController.h>
 #import <UIColor+GlobalColors.h>
+#import <ZBQueue.h>
 #import "ZBTab.h"
+@import LNPopupController;
 
 @interface ZBTabBarController () {
     NSMutableArray *errorMessages;
     ZBDatabaseManager *databaseManager;
     UIActivityIndicatorView *indicator;
     BOOL sourcesUpdating;
+    UINavigationController *queueNav;
 }
 @end
 
@@ -50,19 +53,20 @@
         [databaseManager addDatabaseDelegate:self];
         [databaseManager updateDatabaseUsingCaching:YES userRequested:NO];
     }
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(updateQueueBar) name:@"ZBUpdateQueueBar" object:nil];
 }
 
 - (void)viewDidAppear:(BOOL)animated {
     [super viewDidAppear:animated];
     
     if ([databaseManager needsToPresentRefresh]) {
-        [databaseManager setNeedsToPresentRefresh:false];
+        [databaseManager setNeedsToPresentRefresh:NO];
         UIStoryboard *storyboard = [UIStoryboard storyboardWithName:@"Main" bundle:nil];
         ZBRefreshViewController *refreshController = [storyboard instantiateViewControllerWithIdentifier:@"refreshController"];
         refreshController.messages = nil;
         refreshController.dropTables = YES;
         
-        [self presentViewController:refreshController animated:true completion:nil];
+        [self presentViewController:refreshController animated:YES completion:nil];
     }
 }
 
@@ -74,8 +78,7 @@
         if (updates > 0) {
             [packagesTabBarItem setBadgeValue:[NSString stringWithFormat:@"%d", updates]];
             [[UIApplication sharedApplication] setApplicationIconBadgeNumber:updates];
-        }
-        else {
+        } else {
             [packagesTabBarItem setBadgeValue:nil];
             [[UIApplication sharedApplication] setApplicationIconBadgeNumber:0];
         }
@@ -105,8 +108,7 @@
             [self->indicator startAnimating];
             [badge addSubview:self->indicator];
             self->sourcesUpdating = YES;
-        }
-        else {
+        } else {
             sourcesItem.badgeValue = nil;
             self->sourcesUpdating = NO;
         }
@@ -127,21 +129,21 @@
 }
 
 - (void)databaseStartedUpdate {
-    [self setRepoRefreshIndicatorVisible:true];
+    [self setRepoRefreshIndicatorVisible:YES];
 }
 
 - (void)databaseCompletedUpdate:(int)packageUpdates {
     if (packageUpdates != -1) {
         [self setPackageUpdateBadgeValue:packageUpdates];
     }
-    [self setRepoRefreshIndicatorVisible:false];
+    [self setRepoRefreshIndicatorVisible:NO];
     dispatch_async(dispatch_get_main_queue(), ^{
         if (self->errorMessages) {
             UIStoryboard *storyboard = [UIStoryboard storyboardWithName:@"Main" bundle:nil];
             ZBRefreshViewController *refreshController = [storyboard instantiateViewControllerWithIdentifier:@"refreshController"];
             refreshController.messages = self->errorMessages;
             
-            [self presentViewController:refreshController animated:true completion:nil];
+            [self presentViewController:refreshController animated:YES completion:nil];
             self->errorMessages = nil;
         }
     });
@@ -152,6 +154,54 @@
         if (!errorMessages) errorMessages = [NSMutableArray new];
         [errorMessages addObject:status];
     }
+}
+
+- (void)checkQueueNav {
+    if (queueNav == nil) {
+        UIStoryboard *storyboard = [UIStoryboard storyboardWithName:@"Main" bundle:nil];
+        queueNav = [storyboard instantiateViewControllerWithIdentifier:@"queueNavigationController"];
+    }
+}
+
+- (void)updateQueueBarData {
+    int totalPackages = 0;
+    NSArray *actions = [[ZBQueue sharedInstance] actionsToPerform];
+    for (NSString *string in actions) {
+        totalPackages += [[ZBQueue sharedInstance] numberOfPackagesForQueue:string];
+    }
+    if (totalPackages == 0) {
+        [[ZBAppDelegate tabBarController] dismissPopupBarAnimated:YES completion:nil];
+        return;
+    }
+    queueNav.popupItem.title = [NSString stringWithFormat:@"%d %@ in Queue", totalPackages, totalPackages > 1 ? @"Packages" : @"Package"];
+    queueNav.popupItem.subtitle = @"Tap to manage Queue";
+}
+
+- (void)openQueueBar:(BOOL)openPopup {
+    [self checkQueueNav];
+    LNPopupPresentationState state = self.popupPresentationState;
+    if (state == LNPopupPresentationStateTransitioning) {
+        return;
+    }
+    if (openPopup && state == LNPopupPresentationStateOpen) {
+        return;
+    }
+    if (!openPopup && (state == LNPopupPresentationStateOpen || state == LNPopupPresentationStateClosed)) {
+        return;
+    }
+    [self updateQueueBarData];
+    self.popupInteractionStyle = LNPopupInteractionStyleSnap;
+    self.popupContentView.popupCloseButtonStyle = LNPopupCloseButtonStyleNone;
+    [self presentPopupBarWithContentViewController:queueNav openPopup:openPopup animated:YES completion:nil];
+}
+
+- (void)updateQueueBar {
+    [self checkQueueNav];
+    LNPopupPresentationState state = self.popupPresentationState;
+    if (state != LNPopupPresentationStateOpen && state != LNPopupPresentationStateTransitioning) {
+        [self openQueueBar:NO];
+    }
+    [self updateQueueBarData];
 }
 
 @end

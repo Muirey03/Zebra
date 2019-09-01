@@ -36,7 +36,7 @@
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    return [icons count];
+    return icons.count;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -52,8 +52,7 @@
     
     if (indexPath.row != 0) {
         cell.imageView.image = [UIImage imageNamed:[icons objectAtIndex:indexPath.row]];
-    }
-    else {
+    } else {
         cell.imageView.image = [UIImage imageNamed:@"AppIcon60x60"];
     }
     CGSize itemSize = CGSizeMake(40, 40);
@@ -62,9 +61,8 @@
     [cell.imageView.image drawInRect:imageRect];
     cell.imageView.image = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
-    [cell.imageView.layer setCornerRadius:10];
-    [cell.imageView setClipsToBounds:YES];
-    
+    cell.imageView.layer.cornerRadius = 10;
+    cell.imageView.clipsToBounds = YES;
     
     return cell;
 }
@@ -72,8 +70,7 @@
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     if (indexPath.row == 0) {
         [self setIconWithName:nil fromIndex:indexPath];
-    }
-    else {
+    } else {
         [self setIconWithName:[icons objectAtIndex:indexPath.row] fromIndex:indexPath];
     }
     [tableView deselectRowAtIndexPath:indexPath animated:YES];

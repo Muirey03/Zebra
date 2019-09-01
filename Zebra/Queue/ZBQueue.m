@@ -227,6 +227,7 @@
             }
         }
         [[NSNotificationCenter defaultCenter] postNotificationName:@"ZBDatabaseCompletedUpdate" object:nil];
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"ZBUpdateQueueBar" object:nil];
     }
 }
 
@@ -268,8 +269,7 @@
                 break;
             }
         }
-    }
-    else {
+    } else {
         NSString *key = [self queueToKey:queue];
         if (key) {
             [_managedQueue[key] removeObject:package];
@@ -280,6 +280,7 @@
             [topPackages removeObject:package.identifier];
         }
     }
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"ZBUpdateQueueBar" object:nil];
 }
 
 - (NSArray *)tasks:(NSArray *)debs {
@@ -390,15 +391,11 @@
 }
 
 - (int)numberOfPackagesForQueue:(NSString *)queue {
-    if ([queue isEqualToString:@"Unresolved Dependencies"]) {
+    if ([queue isEqualToString:@"Unresolved Dependencies"])
         return (int)[_failedDepQueue count];
-    }
-    else if ([queue isEqualToString:@"Conflictions"]) {
+    if ([queue isEqualToString:@"Conflictions"])
         return (int)[_failedConQueue count];
-    }
-    else {
-        return (int)[_managedQueue[queue] count];
-    }
+    return (int)[_managedQueue[queue] count];
 }
 
 - (ZBPackage *)packageInQueue:(ZBQueueType)queue atIndex:(NSInteger)index {
@@ -448,7 +445,7 @@
         }
     }
     
-    return (NSArray *)actions;
+    return actions;
 }
 
 - (BOOL)hasObjects {
@@ -471,8 +468,7 @@
                 }
             }
         }
-    }
-    else {
+    } else {
         NSMutableArray *queueArray = [self queueArray:queue];
         if (!queueArray) return NO;
         for (ZBPackage *p in queueArray) {
@@ -493,8 +489,7 @@
                 return YES;
             }
         }
-    }
-    else {
+    } else {
         NSMutableArray *queueArray = [self queueArray:queue];
         if (!queueArray) return NO;
         for (ZBPackage *p in queueArray) {

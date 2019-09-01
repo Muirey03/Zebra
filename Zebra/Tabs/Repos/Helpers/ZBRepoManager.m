@@ -32,6 +32,10 @@
     return instance;
 }
 
+- (void)needRecaching {
+    recachingNeeded = YES;
+}
+
 - (NSMutableDictionary <NSNumber *, ZBRepo *> *)repos {
     if (recachingNeeded) {
         recachingNeeded = NO;
@@ -47,8 +51,7 @@
                 ZBRepo *source = [[ZBRepo alloc] initWithSQLiteStatement:statement];
                 repos[@(source.repoID)] = source;
             }
-        }
-        else {
+        } else {
             [[ZBDatabaseManager sharedInstance] printDatabaseError];
         }
         sqlite3_finalize(statement);
@@ -77,32 +80,37 @@
     static NSArray *urls = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        urls = @[@"apt.thebigboss.org/repofiles/cydia/",
-            @"apt.thebigboss.org/",
+        urls = @[@"apt.thebigboss.org/",
             @"apt.modmyi.com/",
             @"apt.saurik.com/",
-            @"apt.bingner.com/",
-            @"cydia.zodttd.com/repo/cydia/",
             @"cydia.zodttd.com/"];
     });
     return urls;
 }
 
++ (NSArray <NSString *> *)knownDebLines {
+    static NSArray *lines = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        lines = @[
+            @"deb http://apt.thebigboss.org/repofiles/cydia/ stable main\n",
+            @"deb http://apt.modmyi.com/ stable main\n",
+            [NSString stringWithFormat:@"deb http://apt.saurik.com/ ios/%.2f main\n", kCFCoreFoundationVersionNumber],
+            @"deb http://cydia.zodttd.com/repo/cydia/ stable main\n"
+        ];
+    });
+    return lines;
+}
+
 - (NSString *)knownDebLineFromURLString:(NSString *)urlString {
-    switch ([[[self class] knownDistURLs] indexOfObject:urlString]) {
-        case 0 ... 1:
-            return @"deb http://apt.thebigboss.org/repofiles/cydia/ stable main\n";
-        case 2:
-            return @"deb http://apt.modmyi.com/ stable main\n";
-        case 3:
-            return [NSString stringWithFormat:@"deb http://apt.saurik.com/ ios/%.2f main\n", kCFCoreFoundationVersionNumber];
-        case 4:
-            return [NSString stringWithFormat:@"deb http://apt.bingner.com/ ios/%.2f main\n", kCFCoreFoundationVersionNumber];
-        case 5 ... 6:
-            return @"deb http://cydia.zodttd.com/repo/cydia/ stable main\n";
-        default:
-            return nil;
+    int index = 0;
+    for (NSString *knownURL in [[self class] knownDistURLs]) {
+        if ([urlString containsString:knownURL]) {
+            return [[self class] knownDebLines][index];
+        }
+        ++index;
     }
+    return nil;
 }
 
 - (void)addSourcesFromString:(NSString *)sourcesString response:(void (^)(BOOL success, NSString *error, NSArray<NSURL *> *failedURLs))respond {
@@ -148,7 +156,7 @@
                 
                 if (readError != NULL) {
                     // rip
-                    respond(false, [NSString stringWithFormat:@"%@ (%@)", readError.localizedDescription, sourcesList], @[]);
+                    respond(NO, [NSString stringWithFormat:@"%@ (%@)", readError.localizedDescription, sourcesList], @[]);
                     return;
                 }
                 
@@ -171,14 +179,12 @@
                     if ([baseURLs containsObject:urlString]) {
                         NSLog(@"[Zebra] %@ has already been added.", urlString);
                         dispatch_group_leave(group);
-                    }
-                    else {
+                    } else {
                         NSString *debLine = [self knownDebLineFromURLString:urlString];
                         if (debLine) {
                             [self addDebLine:debLine];
                             respond(YES, nil, nil);
-                        }
-                        else {
+                        } else {
                             [strongSelf verifySourceExists:detectedURL completion:^(NSString *responseError, NSURL *failingURL, NSURL *responseURL) {
                                 if (responseError) {
                                     dispatch_sync(sourcesQueue, ^{
@@ -205,8 +211,7 @@
                     if (strongSelf) {
                         if ([self->verifiedURLs count] == 0 && [errorURLs count] == 0) {
                             respond(NO, @"You have already added these repositories.", @[]);
-                        }
-                        else {
+                        } else {
                             __block NSError *addError = nil;
                             
                             [strongSelf addSources:self->verifiedURLs completion:^(BOOL success, NSError *error) {
@@ -251,14 +256,16 @@
             if (responseError) {
                 respond(NO, responseError, failingURL);
             } else {
+                if (responseURL == nil) {
+                    responseURL = sourceURL;
+                }
                 NSLog(@"[Zebra] Verified source %@", responseURL);
                 
                 [self addSources:[NSArray arrayWithObject:sourceURL] completion:^(BOOL success, NSError *addError) {
                     if (success) {
-                        respond(true, NULL, NULL);
-                    }
-                    else {
-                        respond(false, addError.localizedDescription, responseURL);
+                        respond(YES, NULL, NULL);
+                    } else {
+                        respond(NO, addError.localizedDescription, responseURL);
                     }
                 }];
             }
@@ -274,7 +281,7 @@
     NSURL *sourceURL = [NSURL URLWithString:urlString];
     if (!sourceURL) {
         NSLog(@"[Zebra] Invalid URL: %@", urlString);
-        respond(false, [NSString stringWithFormat:@"Invalid URL: %@", urlString], sourceURL);
+        respond(NO, [NSString stringWithFormat:@"Invalid URL: %@", urlString], sourceURL);
         return;
     }
     
@@ -320,14 +327,12 @@
                             NSString *pureErrorMessage = [NSString stringWithFormat:@"Expected status from url %@, received: %d", url, (int)httpResponse.statusCode];
                             NSLog(@"[Zebra] %@", pureErrorMessage);
                             completion(pureErrorMessage, [sourceURL URLByAppendingPathComponent:@"Packages"], [pureHttpResponse.URL URLByDeletingLastPathComponent]);
-                        }
-                        else {
+                        } else {
                             completion(nil, nil, responseURL);
                         }
                     }];
                     [pureTask resume];
-                }
-                else {
+                } else {
                     completion(nil, nil, responseURL);
                 }
             }];
@@ -346,14 +351,12 @@
         NSString *debLine = [self knownDebLineFromURLString:[repo baseURL]];
         if (debLine) {
             [output appendString:debLine];
-        }
-        else {
+        } else {
             NSString *repoURL = [[repo baseURL] stringByDeletingLastPathComponent];
             repoURL = [repoURL stringByDeletingLastPathComponent]; // Remove last two path components
             [output appendFormat:@"deb %@%@/ %@ %@\n", [repo isSecure] ? @"https://" : @"http://", repoURL, [repo suite], [repo components]];
         }
-    }
-    else {
+    } else {
         [output appendFormat:@"deb %@%@ ./\n", [repo isSecure] ? @"https://" : @"http://", [repo baseURL]];
     }
     return output;
@@ -361,9 +364,6 @@
 
 - (void)addSources:(NSArray<NSURL *> *)sourceURLs completion:(void (^)(BOOL success, NSError *error))completion {
     NSMutableString *output = [NSMutableString string];
-    
-    //    NSString *contents = [NSString stringWithContentsOfFile:[ZBAppDelegate sourceListLocation] encoding:NSUTF8StringEncoding error:nil];
-    //    NSLog(@"[Zebra] Previous sources.list\n%@", contents);
     
     ZBDatabaseManager *databaseManager = [ZBDatabaseManager sharedInstance];
     for (ZBRepo *repo in [databaseManager repos]) {
@@ -374,9 +374,7 @@
         NSString *URL = [sourceURL absoluteString];
         [output appendFormat:@"deb %@ ./\n", URL];
     }
-    
-    //    NSLog(@"[Zebra] New sources.list\n%@", output);
-    
+        
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
     NSString *cacheDirectory = [paths objectAtIndex:0];
     
@@ -397,16 +395,14 @@
     [output writeToFile:filePath atomically:YES encoding:NSUTF8StringEncoding error:&error];
     if (error != NULL) {
         NSLog(@"[Zebra] Error while writing sources to file: %@", error);
-        completion(false, error);
-    }
-    else {
+        completion(NO, error);
+    } else {
         [[NSFileManager defaultManager] copyItemAtPath:filePath toPath:listLocation error:&error];
         if (error != NULL) {
             NSLog(@"[Zebra] Error while moving sources to file: %@", error);
-            completion(false, error);
-        }
-        else {
-            completion(true, NULL);
+            completion(NO, error);
+        } else {
+            completion(YES, NULL);
         }
     }
     recachingNeeded = YES;
@@ -442,8 +438,7 @@
     [output writeToFile:filePath atomically:YES encoding:NSUTF8StringEncoding error:&error];
     if (error != NULL) {
         NSLog(@"[Zebra] Error while writing sources to file: %@", error);
-    }
-    else {
+    } else {
         [[NSFileManager defaultManager] copyItemAtPath:filePath toPath:listLocation error:&error];
         if (error != NULL) {
             NSLog(@"[Zebra] Error while moving sources to file: %@", error);
@@ -509,21 +504,17 @@
         NSMutableArray *baseURLs = [NSMutableArray new];
         for (NSString *line in destinationContents) {
             NSArray *contents = [line componentsSeparatedByString:@" "];
-            if ([contents count] == 0 || [contents count] == 4) continue;
-            
-            if ([contents[0] isEqualToString:@"deb"]) {
+            if ([contents count] != 0 && [contents[0] isEqualToString:@"deb"]) {
                 NSURL *url = [NSURL URLWithString:contents[1]];
                 NSString *urlString = [self normalizedURLString:url];
-                
+                    
                 [baseURLs addObject:urlString];
             }
         }
         
         for (NSString *line in sourcesContents) {
             NSArray *contents = [line componentsSeparatedByString:@" "];
-            if ([contents count] == 0 || [contents count] == 4) continue;
-            
-            if ([contents[0] isEqualToString:@"deb"]) {
+            if ([contents count] != 0 && [contents[0] isEqualToString:@"deb"]) {
                 NSURL *url = [NSURL URLWithString:contents[1]];
                 NSString *urlString = [self normalizedURLString:url];
                 
@@ -542,15 +533,14 @@
             }
             
             NSError *writeError;
-            [finalContents writeToURL:destinationURL atomically:false encoding:NSUTF8StringEncoding error:&writeError];
+            [finalContents writeToURL:destinationURL atomically:NO encoding:NSUTF8StringEncoding error:&writeError];
             if (writeError != NULL) {
                 NSLog(@"[Zebra] Error while writing to %@: %@", destinationURL, writeError.localizedDescription);
             }
         }
         
         completion(NULL);
-    }
-    else if ([[fromURL pathExtension] isEqualToString:@"sources"] && [[destinationURL pathExtension] isEqualToString:@"list"]) {
+    } else if ([[fromURL pathExtension] isEqualToString:@"sources"] && [[destinationURL pathExtension] isEqualToString:@"list"]) { //sileo sources format
         NSError *readError;
         NSString *destinationString = [NSString stringWithContentsOfURL:destinationURL encoding:NSUTF8StringEncoding error:&readError];
         NSArray *destinationContents = [destinationString componentsSeparatedByString:@"\n"];
@@ -590,7 +580,7 @@
                 NSString *urlString = [self normalizedURLString:url];
                 
                 if (![baseURLs containsObject:urlString]) {
-                    NSString *converted = [NSString stringWithFormat:@"%@ %@ %@%@\n", (NSString *)[info objectForKey:@"Types"], (NSString *)[info objectForKey:@"URIs"], (NSString *)[info objectForKey:@"Suites"], (NSString *)[info objectForKey:@"Components"]];
+                    NSString *converted = [NSString stringWithFormat:@"%@ %@ %@ %@\n", (NSString *)[info objectForKey:@"Types"], (NSString *)[info objectForKey:@"URIs"], (NSString *)[info objectForKey:@"Suites"], (NSString *)[info objectForKey:@"Components"]];
                     [linesToAdd addObject:converted];
                 }
             }
@@ -605,15 +595,14 @@
             }
             
             NSError *writeError;
-            [finalContents writeToURL:destinationURL atomically:false encoding:NSUTF8StringEncoding error:&writeError];
+            [finalContents writeToURL:destinationURL atomically:NO encoding:NSUTF8StringEncoding error:&writeError];
             if (writeError != NULL) {
                 NSLog(@"[Zebra] Error while writing to %@: %@", destinationURL, writeError.localizedDescription);
             }
         }
         
         completion(NULL);
-    }
-    else {
+    } else {
         NSError *error = [NSError errorWithDomain:NSArgumentDomain code:1337 userInfo:@{NSLocalizedDescriptionKey: @"Both files aren't .list"}];
         completion(error);
     }

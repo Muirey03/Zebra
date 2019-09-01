@@ -6,13 +6,14 @@
 //  Copyright © 2019 Wilson Styres. All rights reserved.
 //
 
+#import <ZBSettings.h>
 #import <ZBDevice.h>
 #import "UIColor+GlobalColors.h"
 
 @implementation UIColor (GlobalColors)
 
 + (UIColor *)tintColor {
-    NSNumber *number = [[NSUserDefaults standardUserDefaults] objectForKey:@"tintSelection"];
+    NSNumber *number = [[NSUserDefaults standardUserDefaults] objectForKey:tintSelectionKey];
     if (number) {
         switch ([number integerValue]) {
             case ZBDefaultTint :
@@ -66,7 +67,7 @@
     return highlighted ? [UIColor colorWithRed:0.94 green:0.95 blue:1.00 alpha:1.0] : [UIColor cellBackgroundColor];
 }
 
-+ (UIColor *)selectedCellBackgroundColorDark:(BOOL)highlighted oled:(BOOL)oled{
++ (UIColor *)selectedCellBackgroundColorDark:(BOOL)highlighted oled:(BOOL)oled {
     if (!oled) {
         return highlighted ? [UIColor colorWithRed:0.2 green:0.2 blue:0.2 alpha:1.0] : [UIColor colorWithRed:0.110 green:0.110 blue:0.114 alpha:1.0];
     }

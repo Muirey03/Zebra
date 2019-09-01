@@ -6,7 +6,8 @@
 //  Copyright © 2019 Wilson Styres. All rights reserved.
 //
 
-#import "ZBDevice.h"
+#import <ZBDevice.h>
+#import <ZBSettings.h>
 #import <Extensions/UIColor+GlobalColors.h>
 #import <WebKit/WebKit.h>
 #import <Queue/ZBQueue.h>
@@ -112,8 +113,13 @@
             [task setLaunchPath:@"/usr/bin/sbreload"];
             [self asRoot:task arguments:nil];
             if (![task isRunning]) {
-                [task launch];
-                [task waitUntilExit];
+                @try {
+                    [task launch];
+                    [task waitUntilExit];
+                }
+                @catch (NSException *e) {
+                    execed = YES;
+                }
             } else {
                 execed = YES;
             }
@@ -208,11 +214,11 @@
 }
 
 + (BOOL)darkModeOledEnabled {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:@"oledMode"];
+    return [[NSUserDefaults standardUserDefaults] boolForKey:oledModeKey];
 }
 
 + (BOOL)darkModeThirteenEnabled {
-    return [[NSUserDefaults standardUserDefaults] boolForKey:@"thirteenMode"];
+    return [[NSUserDefaults standardUserDefaults] boolForKey:thirteenModeKey];
 }
 
 + (void)setDarkModeEnabled:(BOOL)enabled {
@@ -311,12 +317,11 @@
 
 + (void)applyThemeSettings {
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    BOOL useIcon = [defaults boolForKey:@"packageIconAction"];
+    BOOL useIcon = [defaults boolForKey:iconActionKey];
     [[ZBQueue sharedInstance] setUseIcon:useIcon];
     if ([self darkModeEnabled]) {
         [self configureDarkMode];
-    }
-    else {
+    } else {
         [self configureLightMode];
     }
 }
@@ -338,7 +343,19 @@
 }
 
 + (NSInteger)selectedColorTint {
-    return [[NSUserDefaults standardUserDefaults] integerForKey:@"tintSelection"];
+    return [[NSUserDefaults standardUserDefaults] integerForKey:tintSelectionKey];
+}
+
++ (void)openURL:(NSURL *)url delegate:(UIViewController <SFSafariViewControllerDelegate> *)delegate {
+    SFSafariViewController *safariVC = [[SFSafariViewController alloc] initWithURL:url];
+    safariVC.delegate = delegate;
+    if (@available(iOS 10.0, *)) {
+        safariVC.preferredBarTintColor = [UIColor tableViewBackgroundColor];
+        safariVC.preferredControlTintColor = [UIColor tintColor];
+    } else {
+        safariVC.view.tintColor = [UIColor tintColor];
+    }
+    [delegate presentViewController:safariVC animated:YES completion:nil];
 }
 
 @end

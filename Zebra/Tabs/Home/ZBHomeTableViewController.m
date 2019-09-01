@@ -6,6 +6,7 @@
 //  Copyright © 2019 Wilson Styres. All rights reserved.
 //
 
+#import <ZBSettings.h>
 #import "ZBHomeTableViewController.h"
 #import "ZBNewsCollectionViewCell.h"
 
@@ -21,8 +22,7 @@ typedef enum ZBViewOrder : NSUInteger {
     ZBChangeLog,
     ZBCommunity,
     ZBStores,
-    ZBWishList,
-    // ZBBug
+    ZBWishList
 } ZBViewOrder;
 
 typedef enum ZBLinksOrder : NSUInteger {
@@ -69,12 +69,6 @@ typedef enum ZBLinksOrder : NSUInteger {
 }
 
 - (void)setupFeatured {
-    if (![self.defaults objectForKey:@"wantsFeatured"]) {
-        [self.defaults setBool:YES forKey:@"wantsFeatured"];
-    }
-    if (![self.defaults objectForKey:@"wantsNews"]) {
-        [self.defaults setBool:YES forKey:@"wantsNews"];
-    }
     allFeatured = [NSMutableArray new];
     selectedFeatured = [NSMutableArray new];
     redditPosts = [NSMutableArray new];
@@ -84,8 +78,8 @@ typedef enum ZBLinksOrder : NSUInteger {
 
 - (void)startFeaturedPackages {
     self.tableView.tableHeaderView.frame = CGRectMake(self.tableView.tableHeaderView.frame.origin.x, self.tableView.tableHeaderView.frame.origin.y, self.tableView.tableHeaderView.frame.size.width, CGFLOAT_MIN);
-    if ([self.defaults boolForKey:@"wantsFeatured"]) {
-        if ([self.defaults boolForKey:@"randomFeatured"]) {
+    if ([self.defaults boolForKey:wantsFeaturedKey]) {
+        if ([self.defaults boolForKey:randomFeaturedKey]) {
             dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
                 [self packagesFromDB];
             });
@@ -150,7 +144,9 @@ typedef enum ZBLinksOrder : NSUInteger {
 - (void)setupHeaderFromCache {
     [allFeatured removeAllObjects];
     [allFeatured addObjectsFromArray:[NSArray arrayWithContentsOfFile:[[ZBAppDelegate documentsDirectory] stringByAppendingPathComponent:@"Cache/Featured.plist"]]];
-    [self createHeader];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self createHeader];
+    });
 }
 
 - (void)packagesFromDB {
@@ -170,7 +166,7 @@ typedef enum ZBLinksOrder : NSUInteger {
                     [dict setObject:package.iconPath forKey:@"url"];
                     [dict setObject:package.identifier forKey:@"package"];
                     [dict setObject:package.name forKey:@"title"];
-                    [self-> allFeatured addObject:dict];
+                    [self->allFeatured addObject:dict];
                 }
             }
         }
@@ -270,11 +266,10 @@ typedef enum ZBLinksOrder : NSUInteger {
                 cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:cellIdentifier];
             }
             cell.textLabel.text = @"Welcome to the Zebra Beta!";
-            [cell.textLabel setTextColor:[UIColor cellPrimaryTextColor]];
-            [cell setSelectionStyle:UITableViewCellSelectionStyleNone];
+            cell.textLabel.textColor = [UIColor cellPrimaryTextColor];
+            cell.selectionStyle = UITableViewCellSelectionStyleNone;
             return cell;
         }
-            break;
         case ZBViews: {
             static NSString *cellIdentifier = @"viewCell";
             
@@ -302,10 +297,6 @@ typedef enum ZBLinksOrder : NSUInteger {
                     text = @"Wish List";
                     image = [UIImage imageNamed:@"stores"];
                     break;
-                /*case ZBBug:
-                    text = @"Report a Bug";
-                    image = [UIImage imageNamed:@"report"];
-                    break;*/
                 default:
                     break;
             }
@@ -313,11 +304,10 @@ typedef enum ZBLinksOrder : NSUInteger {
             [cell.imageView setImage:image];
             [self setImageSize:cell.imageView];
             cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-            [cell.textLabel setTextColor:[UIColor cellPrimaryTextColor]];
+            cell.textLabel.textColor = [UIColor cellPrimaryTextColor];
             [cell.textLabel sizeToFit];
             return cell;
         }
-            break;
         case ZBLinks: {
             static NSString *cellIdentifier = @"linkCell";
             
@@ -342,13 +332,11 @@ typedef enum ZBLinksOrder : NSUInteger {
             [cell.imageView setImage:image];
             [self setImageSize:cell.imageView];
             cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-            [cell.textLabel setTextColor:[UIColor cellPrimaryTextColor]];
+            cell.textLabel.textColor = [UIColor cellPrimaryTextColor];
             [cell.textLabel sizeToFit];
             return cell;
             
         }
-            
-            break;
         case ZBCredits: {
             static NSString *cellIdentifier = @"creditCell";
             
@@ -361,15 +349,12 @@ typedef enum ZBLinksOrder : NSUInteger {
             [cell.imageView setImage:[UIImage imageNamed:@"url"]];
             [self setImageSize:cell.imageView];
             cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-            [cell.textLabel setTextColor:[UIColor cellPrimaryTextColor]];
+            cell.textLabel.textColor = [UIColor cellPrimaryTextColor];
             [cell.textLabel sizeToFit];
             return cell;
         }
-            break;
-            
         default:
             return nil;
-            break;
     }
 }
 
@@ -377,21 +362,14 @@ typedef enum ZBLinksOrder : NSUInteger {
     switch (section) {
         case ZBWelcome:
             return @"Info";
-            break;
-        case ZBViews:
-            return @"";
-            break;
         case ZBLinks:
             return @"Community";
-            break;
-        case ZBCredits:
-            return @"";
         default:
             return nil;
     }
 }
 
-- (void)setImageSize:(UIImageView *)imageView{
+- (void)setImageSize:(UIImageView *)imageView {
     CGSize itemSize = CGSizeMake(29, 29);
     UIGraphicsBeginImageContextWithOptions(itemSize, NO, UIScreen.mainScreen.scale);
     CGRect imageRect = CGRectMake(0.0, 0.0, itemSize.width, itemSize.height);
@@ -420,47 +398,28 @@ typedef enum ZBLinksOrder : NSUInteger {
 }
 
 - (void)pushToView:(NSUInteger)row {
+    UIStoryboard *storyboard = [UIStoryboard storyboardWithName:@"Main" bundle:nil];
     switch (row) {
-        case ZBChangeLog:{
-            UIStoryboard *storyboard = [UIStoryboard storyboardWithName:@"Main" bundle:nil];
+        case ZBChangeLog: {
             ZBChangeLogTableViewController *changeLog = [storyboard instantiateViewControllerWithIdentifier:@"changeLogController"];
-            [self.navigationController pushViewController:changeLog animated:true];
-        }
+            [self.navigationController pushViewController:changeLog animated:YES];
             break;
+        }
         case ZBCommunity: {
-            UIStoryboard *storyboard = [UIStoryboard storyboardWithName:@"Main" bundle:nil];
             ZBCommunityReposTableViewController *community = [storyboard instantiateViewControllerWithIdentifier:@"communityReposController"];
-            [self.navigationController pushViewController:community animated:true];
-        }
+            [self.navigationController pushViewController:community animated:YES];
             break;
-        case ZBStores:{
-            UIStoryboard *storyboard = [UIStoryboard storyboardWithName:@"Main" bundle:nil];
+        }
+        case ZBStores: {
             ZBStoresListTableViewController *webController = [storyboard instantiateViewControllerWithIdentifier:@"storesController"];
-            [[self navigationController] pushViewController:webController animated:true];
-        }
+            [[self navigationController] pushViewController:webController animated:YES];
             break;
-            
+        }
         case ZBWishList: {
-            UIStoryboard *storyboard = [UIStoryboard storyboardWithName:@"Main" bundle:nil];
-            ZBStoresListTableViewController *webController = [storyboard instantiateViewControllerWithIdentifier:@"wishListController"];
-            [[self navigationController] pushViewController:webController animated:true];
-        }
+            ZBWishListTableViewController *webController = [storyboard instantiateViewControllerWithIdentifier:@"wishListController"];
+            [[self navigationController] pushViewController:webController animated:YES];
             break;
-        /*case ZBBug:{
-            UIStoryboard *storyboard = [UIStoryboard storyboardWithName:@"Main" bundle:nil];
-            ZBWebViewController *webController = [storyboard instantiateViewControllerWithIdentifier:@"webController"];
-            webController.navigationDelegate = webController;
-            webController.navigationItem.title = @"Loading...";
-            NSURL *url = [NSURL URLWithString:@"https://xtm3x.github.io/repo/depictions/xyz.willy.zebra/bugsbugsbugs.html"];
-            [self.navigationController.navigationBar setBackgroundColor:[UIColor tableViewBackgroundColor]];
-            [self.navigationController.navigationBar setBarTintColor:[UIColor tableViewBackgroundColor]];
-            
-            [webController setValue:url forKey:@"_url"];
-            
-            [[self navigationController] pushViewController:webController animated:true];
         }
-            break;*/
-            
         default:
             break;
     }
@@ -477,7 +436,7 @@ typedef enum ZBLinksOrder : NSUInteger {
     
     [webController setValue:url forKey:@"_url"];
     
-    [[self navigationController] pushViewController:webController animated:true];
+    [[self navigationController] pushViewController:webController animated:YES];
 }
 
 - (void)openLinkFromRow:(NSUInteger)row {
@@ -485,21 +444,21 @@ typedef enum ZBLinksOrder : NSUInteger {
     switch (row) {
         case ZBDiscord:{
             [self openURL:[NSURL URLWithString:@"https://discord.gg/6CPtHBU"]];
-        }
             break;
+        }
         case ZBWilsonTwitter: {
             NSURL *twitterapp = [NSURL URLWithString:@"twitter:///user?screen_name=xtm3x"];
             NSURL *tweetbot = [NSURL URLWithString:@"tweetbot:///user_profile/xtm3x"];
             NSURL *twitterweb = [NSURL URLWithString:@"https://twitter.com/xtm3x"];
             if ([application canOpenURL:twitterapp]) {
                 [self openURL:twitterapp];
-            } else if ([application canOpenURL:tweetbot]){
+            } else if ([application canOpenURL:tweetbot]) {
                 [self openURL:tweetbot];
             } else {
                 [self openURL:twitterweb];
             }
-        }
             break;
+        }
         default:
             break;
     }
@@ -568,7 +527,7 @@ typedef enum ZBLinksOrder : NSUInteger {
 }
 
 - (void)refreshCollection:(NSNotification *)notif {
-    BOOL selected = [self.defaults boolForKey:@"randomFeatured"];
+    BOOL selected = [self.defaults boolForKey:randomFeaturedKey];
     [allFeatured removeAllObjects];
     if (selected) {
         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
@@ -588,10 +547,9 @@ typedef enum ZBLinksOrder : NSUInteger {
 - (void)toggleFeatured {
     [allFeatured removeAllObjects];
     [self setupFeatured];
-    if ([self.defaults boolForKey:@"wantsFeatured"]) {
+    if ([self.defaults boolForKey:wantsFeaturedKey]) {
         [self refreshCollection:nil];
-    }
-    else {
+    } else {
         [self.tableView beginUpdates];
         self.tableView.tableHeaderView.frame = CGRectMake(self.tableView.tableHeaderView.frame.origin.x, self.tableView.tableHeaderView.frame.origin.y, self.tableView.tableHeaderView.frame.size.width, CGFLOAT_MIN);
         [self.tableView endUpdates];
@@ -610,11 +568,7 @@ typedef enum ZBLinksOrder : NSUInteger {
 }
 
 - (UIStatusBarStyle)preferredStatusBarStyle {
-    if ([ZBDevice darkModeEnabled]) {
-        return UIStatusBarStyleLightContent;
-    } else {
-        return UIStatusBarStyleDefault;
-    }
+    return [ZBDevice darkModeEnabled] ? UIStatusBarStyleLightContent : UIStatusBarStyleDefault;
 }
 
 - (void)colorWindow {
@@ -628,8 +582,7 @@ typedef enum ZBLinksOrder : NSUInteger {
     NSDictionary *currentBanner = [selectedFeatured objectAtIndex:indexPath.row];
     [cell.imageView sd_setImageWithURL:currentBanner[@"url"] placeholderImage:[UIImage imageNamed:@"Unknown"]];
     cell.packageID = currentBanner[@"package"];
-    [cell.titleLabel setText:currentBanner[@"title"]];
-    
+    cell.titleLabel.text = currentBanner[@"title"];
     return cell;
 }
 

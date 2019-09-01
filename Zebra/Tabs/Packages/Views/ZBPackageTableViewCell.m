@@ -49,12 +49,11 @@
         // [self.iconImageView setImageFromURL:[NSURL URLWithString:package.iconPath] placeHolderImage:sectionImage];
         // [self.iconImageView loadImageFromURL:[NSURL URLWithString:package.iconPath] placeholderImage:sectionImage cachingKey:package.name];
         [self.iconImageView sd_setImageWithURL:[NSURL URLWithString:package.iconPath] placeholderImage:sectionImage];
-    }
-    else {
+    } else {
         self.iconImageView.image = sectionImage;
     }
     
-    BOOL installed = [package isInstalled:false];
+    BOOL installed = [package isInstalled:NO];
     BOOL paid = [package isPaid];
     
     self.isInstalledImageView.hidden = !installed;
@@ -68,8 +67,7 @@
             self.isInstalledImageView.image = self.isPaidImageView.image;
             self.isInstalledImageView.hidden = NO;
             self.isPaidImageView.hidden = YES;
-        }
-        else {
+        } else {
             self.isPaidImageView.image = [UIImage imageNamed:@"Paid"];
         }
     }
@@ -87,8 +85,7 @@
         dispatch_async(dispatch_get_main_queue(), ^{
             [self.queueStatusLabel sizeToFit];
         });
-    }
-    else {
+    } else {
         self.queueStatusLabel.hidden = YES;
         self.queueStatusLabel.text = nil;
         self.queueStatusLabel.backgroundColor = nil;
@@ -105,7 +102,7 @@
 - (NSString *)stripEmailFromAuthor:(NSString *)name {
     NSArray *authorName = [name componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
     NSMutableArray *cleanedStrings = [NSMutableArray new];
-    for(NSString *cut in authorName) {
+    for (NSString *cut in authorName) {
         if (![cut hasPrefix:@"<"] && ![cut hasSuffix:@">"]) {
             [cleanedStrings addObject:cut];
         }

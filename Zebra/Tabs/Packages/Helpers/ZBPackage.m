@@ -110,6 +110,10 @@
         if ([path rangeOfString:@"/Library/ControlCenter/Bundles"].location != NSNotFound && [path hasSuffix:@".bundle"]) {
             return YES;
         }
+        // Flipswitch bundles
+        if ([path rangeOfString:@"/Library/Switches"].location != NSNotFound && [path hasSuffix:@".bundle"]) {
+            return YES;
+        }
     }
     return NO;
 }
@@ -117,7 +121,7 @@
 + (BOOL)containsApp:(NSString *)packageID {
     ZBLog(@"[Zebra] Searching %@ for app bundle", packageID);
     if ([ZBDevice needsSimulation]) {
-        return true;
+        return YES;
     }
     if ([packageID hasSuffix:@".deb"]) {
         // do the ole dpkg -I
@@ -157,10 +161,13 @@
             return YES;
         }
     }
-    return false;
+    return NO;
 }
 
 + (NSString *)pathForApplication:(NSString *)packageID {
+    if ([ZBDevice needsSimulation]) {
+        return nil;
+    }
     if ([packageID hasSuffix:@".deb"]) {
         // do the ole dpkg -I
         NSTask *task = [[NSTask alloc] init];
@@ -289,9 +296,8 @@
         int repoID = sqlite3_column_int(statement, ZBPackageColumnRepoID);
         if (repoID > 0) {
             [self setRepo:[ZBRepo repoMatchingRepoID:repoID]];
-        }
-        else {
-            [self setRepo:[ZBRepo localRepo]];
+        } else {
+            [self setRepo:[ZBRepo localRepo:repoID]];
         }
         
         NSString *sectionStripped = [section stringByReplacingOccurrencesOfString:@" " withString:@"_"];
@@ -327,7 +333,7 @@
 }
 
 - (BOOL)sameAsStricted:(ZBPackage *)package {
-    return [self sameAs:package] && [[self version] isEqualToString:[package version]];
+    return [self sameAs:package] && [[self version] isEqualToString:package.version];
 }
 
 - (NSString *)description {
@@ -342,17 +348,14 @@
         
         if (compare([[self version] UTF8String], [[obj version] UTF8String]) < 0)
             return NSOrderedAscending;
-        else
-            return NSOrderedDescending;
-    }
-    else {
+        return NSOrderedDescending;
+    } else {
         int result = compare([[self version] UTF8String], [(NSString *)object UTF8String]);
         if (result < 0)
             return NSOrderedAscending;
-        else if (result > 0)
+        if (result > 0)
             return NSOrderedDescending;
-        else
-            return NSOrderedSame;
+        return NSOrderedSame;
     }
 }
 
@@ -379,7 +382,7 @@
         }
     }
     
-    NSError *readError;
+    NSError *readError = NULL;
     NSString *contents = [NSString stringWithContentsOfFile:filename encoding:NSUTF8StringEncoding error:&readError];
     
     if (readError != NULL) {
@@ -446,12 +449,10 @@
 
 - (BOOL)isInstalled:(BOOL)strict {
     if ([repo repoID] <= 0) { // Package is in repoID 0 or -1 and is installed
-        return true;
+        return YES;
     }
-    else {
-        ZBDatabaseManager *databaseManager = [ZBDatabaseManager sharedInstance];
-        return [databaseManager packageIsInstalled:self versionStrict:strict];
-    }
+    ZBDatabaseManager *databaseManager = [ZBDatabaseManager sharedInstance];
+    return [databaseManager packageIsInstalled:self versionStrict:strict];
 }
 
 - (BOOL)isReinstallable {
@@ -467,9 +468,13 @@
 }
 
 - (NSUInteger)possibleActions {
+    if (self.repo.repoID == -1) {
+        // We do nothing with virtual dependencies
+        return 0;
+    }
     if (possibleActions == 0) {
         // Bits order: Select Ver. - Upgrade - Reinstall - Remove - Install
-        if ([self isInstalled:false]) {
+        if ([self isInstalled:NO]) {
             ZBDatabaseManager *databaseManager = [ZBDatabaseManager sharedInstance];
             if ([self isReinstallable]) {
                 possibleActions |= ZBQueueTypeReinstall; // Reinstall
@@ -479,8 +484,7 @@
                 possibleActions |= ZBQueueTypeUpgrade; // Upgrade
             }
             possibleActions |= ZBQueueTypeRemove; // Remove
-        }
-        else {
+        } else {
             possibleActions |= ZBQueueTypeInstall; // Install
         }
         NSArray *otherVersions = [self otherVersions];
@@ -499,7 +503,6 @@
 
 - (BOOL)ignoreUpdates {
     ZBDatabaseManager *databaseManager = [ZBDatabaseManager sharedInstance];
-    
     return [databaseManager areUpdatesIgnoredForPackage:self];
 }
 
@@ -511,21 +514,22 @@
 
 - (ZBPackage *)installableCandidate {
     ZBDatabaseManager *databaseManager = [ZBDatabaseManager sharedInstance];
-    ZBPackage *candidate = [databaseManager packageForID:self.identifier thatSatisfiesComparison:@"<=" ofVersion:[self version] checkInstalled:false checkProvides:true];
+    ZBPackage *candidate = [databaseManager packageForID:self.identifier thatSatisfiesComparison:@"<=" ofVersion:[self version] checkInstalled:NO checkProvides:YES];
     ZBLog(@"Installable candidate for %@ is %@", self, candidate);
     return candidate;
 }
 
 - (NSDate *)installedDate {
+    if ([ZBDevice needsSimulation])
+        return nil;
 	NSString *listPath = [NSString stringWithFormat:@"/var/lib/dpkg/info/%@.list", self.identifier];
 	NSDictionary *attributes = [[NSFileManager defaultManager] attributesOfItemAtPath:listPath error:NULL];
 	return attributes[NSFileModificationDate];
 }
 
 - (NSString *)installedVersion {
-#if TARGET_OS_SIMULATOR
-    return self.version;
-#else
+    if ([ZBDevice needsSimulation])
+        return self.version;
 	NSTask *installedVersionTask = [[NSTask alloc] init];
     [installedVersionTask setLaunchPath:@"/usr/bin/dpkg"];
     NSArray *versionArgs = [[NSArray alloc] initWithObjects:@"-s", self.identifier, nil];
@@ -551,7 +555,6 @@
 	}];
 
     return version;
-#endif
 }
 
 @end

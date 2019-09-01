@@ -54,14 +54,14 @@
 - (IBAction)install:(id)sender {
     UIStoryboard *storyboard = [UIStoryboard storyboardWithName:@"Main" bundle: nil];
     ZBConsoleViewController *vc = [storyboard instantiateViewControllerWithIdentifier:@"consoleViewController"];
-    vc.externalInstall = true;
+    vc.externalInstall = YES;
     vc.externalFilePath = [_fileURL path];
     
-    [[self navigationController] pushViewController:vc animated:true];
+    [[self navigationController] pushViewController:vc animated:YES];
 }
 
 - (IBAction)goodbye:(id)sender {
-    [self dismissViewControllerAnimated:true completion:nil];
+    [self dismissViewControllerAnimated:YES completion:nil];
 }
 
 #pragma mark - Table view data source
@@ -103,8 +103,7 @@
         cell.imageView.image = [UIImage imageNamed:section];
         
         return cell;
-    }
-    else {
+    } else {
         UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"externalPackageDetailCell" forIndexPath:indexPath];
         
         cell.textLabel.text = keys[indexPath.row];

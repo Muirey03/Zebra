@@ -8,10 +8,11 @@
 
 #import <ZBTabBarController.h>
 #import <ZBDevice.h>
-#import "ZBRefreshViewController.h"
 #import <Database/ZBDatabaseManager.h>
 #import <Downloads/ZBDownloadManager.h>
+#import <ZBRepoManager.h>
 #include <Parsel/parsel.h>
+#import "ZBRefreshViewController.h"
 
 typedef enum {
     ZBStateCancel = 0,
@@ -50,11 +51,7 @@ typedef enum {
 }
 
 - (UIStatusBarStyle)preferredStatusBarStyle {
-    if ([ZBDevice darkModeEnabled]) {
-        return UIStatusBarStyleLightContent;
-    } else {
-        return UIStatusBarStyleDefault;
-    }
+    return [ZBDevice darkModeEnabled] ? UIStatusBarStyleLightContent : UIStatusBarStyleDefault;
 }
 
 - (void)viewDidAppear:(BOOL)animated {
@@ -71,13 +68,11 @@ typedef enum {
         if (self.repoURLs.count) {
             // Update only the repos specified
             [databaseManager updateRepoURLs:self.repoURLs useCaching:NO];
-        }
-        else {
+        } else {
             // Update every repo
             [databaseManager updateDatabaseUsingCaching:NO userRequested:YES];
         }
-    }
-    else {
+    } else {
         hadAProblem = YES;
         for (NSString *message in messages) {
             [self writeToConsole:message atLevel:ZBLogLevelError];
@@ -90,8 +85,7 @@ typedef enum {
 - (IBAction)completeOrCancelButton:(id)sender {
     if (buttonState == ZBStateDone) {
         [self goodbye];
-    }
-    else {
+    } else {
         if (_dropTables) {
             return;
         }
@@ -113,17 +107,9 @@ typedef enum {
 - (void)goodbye {
     if (![NSThread isMainThread]) {
         [self performSelectorOnMainThread:@selector(goodbye) withObject:nil waitUntilDone:NO];
-    }
-    else {
+    } else {
         [self clearProblems];
-        if ([self presentingViewController] != NULL) {
-            [self dismissViewControllerAnimated:YES completion:nil];
-        }
-        else {
-            UIStoryboard *storyboard = [UIStoryboard storyboardWithName:@"Main" bundle: nil];
-            ZBTabBarController *vc = [storyboard instantiateViewControllerWithIdentifier:@"tabController"];
-            [self presentViewController:vc animated:YES completion:nil];
-        }
+        [self dismissViewControllerAnimated:YES completion:nil];
     }
 }
 
@@ -152,9 +138,9 @@ typedef enum {
                 font = [UIFont fontWithName:@"CourierNewPSMT" size:10.0];
                 break;
             }
-            default: {
+            default:
                 break;
-            }
+
         }
 
         NSDictionary *attrs = @{ NSForegroundColorAttributeName: color, NSFontAttributeName: font };
@@ -181,10 +167,10 @@ typedef enum {
     }
     if (!hadAProblem) {
         [self goodbye];
-    }
-    else {
+    } else {
         [self.completeOrCancelButton setTitle:@"Done" forState:UIControlStateNormal];
     }
+    [[ZBRepoManager sharedInstance] needRecaching];
 }
 
 - (void)postStatusUpdate:(NSString *)status atLevel:(ZBLogLevel)level {

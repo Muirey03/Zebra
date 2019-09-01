@@ -16,6 +16,7 @@
 #import <ZBTabBarController.h>
 #import <Downloads/ZBDownloadManager.h>
 #import <Packages/Helpers/ZBPackage.h>
+@import LNPopupController;
 
 typedef enum {
     ZBStageInstall = 0,
@@ -26,16 +27,17 @@ typedef enum {
 } ZBStage;
 
 @interface ZBConsoleViewController () {
-    int stage;
+    ZBStage stage;
     BOOL continueWithActions;
-    NSArray *akton;
     BOOL needsIconCacheUpdate;
     BOOL needsRespring;
+    BOOL hasZebraUpdated;
+    BOOL preventCancel;
+    NSArray *akton;
     NSMutableArray *installedIDs;
     NSMutableArray *bundlePaths;
     NSMutableDictionary <NSString *, NSNumber *> *downloadingMap;
     ZBDownloadManager *downloadManager;
-    BOOL hasZebraUpdated;
 }
 @end
 
@@ -45,15 +47,13 @@ typedef enum {
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-
-    [self setTitle:@"Console"];
-    [self.navigationController.navigationBar setBarStyle:UIBarStyleBlack];
-    
     queue = [ZBQueue sharedInstance];
+    self.title = @"Console";
     stage = -1;
-    continueWithActions = true;
-    needsIconCacheUpdate = false;
-    needsRespring = false;
+    continueWithActions = YES;
+    needsIconCacheUpdate = NO;
+    needsRespring = NO;
+    preventCancel = NO;
     installedIDs = [NSMutableArray new];
     bundlePaths = [NSMutableArray new];
     downloadingMap = [NSMutableDictionary new];
@@ -61,9 +61,7 @@ typedef enum {
     _progressView.hidden = YES;
     _progressText.text = nil;
     _progressText.hidden = YES;
-    UIBarButtonItem *cancelButton = [[UIBarButtonItem alloc] initWithTitle:@"Cancel" style:UIBarButtonItemStylePlain target:self action:@selector(cancel)];
-    self.navigationItem.leftBarButtonItem = cancelButton;
-    [self.navigationItem setHidesBackButton:YES animated:NO];
+    [self updateCancelOrCloseButton];
 }
 
 - (void)viewDidAppear:(BOOL)animated {
@@ -72,13 +70,11 @@ typedef enum {
     if (_externalInstall) {
         akton = @[@[@0], @[@"apt", @"install", @"-y", _externalFilePath]];
         [self performSelectorInBackground:@selector(performActions) withObject:NULL];
-    }
-    else if ([queue needsHyena]) {
+    } else if ([queue needsHyena]) {
         _progressView.hidden = NO;
         _progressText.hidden = NO;
         [self downloadPackages];
-    }
-    else {
+    } else {
         [self performSelectorInBackground:@selector(performActions) withObject:NULL];
     }
 }
@@ -89,11 +85,9 @@ typedef enum {
 
 - (void)downloadPackages {
     NSArray *packages = [queue packagesToDownload];
-    
     [self writeToConsole:@"Downloading Packages...\n" atLevel:ZBLogLevelInfo];
     downloadManager = [[ZBDownloadManager alloc] init];
     downloadManager.downloadDelegate = self;
-    
     [downloadManager downloadPackages:packages];
 }
 
@@ -111,8 +105,7 @@ typedef enum {
         for (NSArray *command in akton) {
             if ([command count] == 1) {
                 [self updateStatus:[command[0] intValue]];
-            }
-            else {
+            } else {
                 for (int i = 3; i < [command count]; ++i) {
                     NSString *packageID = command[i];
                     if (![self isValidPackageID:packageID]) {
@@ -121,7 +114,7 @@ typedef enum {
                     
                     if (stage != ZBStageDone) {
                         if (!needsIconCacheUpdate && [ZBPackage containsApp:packageID]) {
-                            needsIconCacheUpdate = true;
+                            needsIconCacheUpdate = YES;
                             NSString *path = [ZBPackage pathForApplication:packageID];
                             if (path) {
                                 [bundlePaths addObject:path];
@@ -161,19 +154,16 @@ typedef enum {
             }
         }
         [self refreshLocalPackages];
-    }
-    else {
+    } else {
         if (continueWithActions) {
             _progressText.text = @"Performing actions...";
-            self.navigationItem.leftBarButtonItem = nil;
             NSArray *actions = [queue tasks:debs];
             ZBLog(@"[Zebra] Actions: %@", actions);
             
             for (NSArray *command in actions) {
                 if ([command count] == 1) {
                     [self updateStatus:[command[0] intValue]];
-                }
-                else {
+                } else {
                     for (int i = 3; i < [command count]; ++i) {
                         NSString *packageID = command[i];
                         if (![self isValidPackageID:packageID]) {
@@ -181,7 +171,7 @@ typedef enum {
                         }
                         if (stage != ZBStageDone) {
                             if (!needsIconCacheUpdate && [ZBPackage containsApp:packageID]) {
-                                needsIconCacheUpdate = true;
+                                needsIconCacheUpdate = YES;
                                 NSString *path = [ZBPackage pathForApplication:packageID];
                                 if (path) {
                                     [bundlePaths addObject:path];
@@ -221,8 +211,7 @@ typedef enum {
                 }
             }
             [self refreshLocalPackages];
-        }
-        else {
+        } else {
             [self finishUp];
         }
     }
@@ -237,7 +226,7 @@ typedef enum {
     for (NSString *packageID in installedIDs) {
         BOOL update = [ZBPackage containsApp:packageID];
         if (update) {
-            needsIconCacheUpdate = true;
+            needsIconCacheUpdate = YES;
             NSString *truePackageID = packageID;
             if ([truePackageID hasSuffix:@".deb"]) {
                 // Transform deb-path-like packageID into actual package ID for checking to prevent duplicates
@@ -258,9 +247,11 @@ typedef enum {
         }
         
         if (!needsRespring) {
-            needsRespring = [ZBPackage containsRespringable:packageID] ? true : needsRespring;
+            needsRespring = [ZBPackage containsRespringable:packageID] ? YES : needsRespring;
         }
     }
+    
+    [self removeAllDebs];
     
     if (needsIconCacheUpdate) {
         [self writeToConsole:@"Updating icon cache...\n" atLevel:ZBLogLevelInfo];
@@ -268,79 +259,60 @@ typedef enum {
         if ([uicaches count] + [bundlePaths count] > 1) {
             [arguments addObject:@"-a"];
             [self writeToConsole:@"This may take awhile and Zebra may crash. It is okay if it does.\n" atLevel:ZBLogLevelWarning];
-        }
-        else {
+        } else {
             [arguments addObject:@"-p"];
             for (NSString *packageID in uicaches) {
-                if ([packageID isEqualToString:@"-p"] || [packageID isEqualToString:[ZBAppDelegate bundleID]]) continue;
-                
+                if ([packageID isEqualToString:[ZBAppDelegate bundleID]])
+                    continue;
                 NSString *bundlePath = [ZBPackage pathForApplication:packageID];
-                if (bundlePath != NULL) [bundlePaths addObject:bundlePath];
+                if (bundlePath != NULL)
+                    [bundlePaths addObject:bundlePath];
             }
             [arguments addObjectsFromArray:bundlePaths];
         }
         
         if (![ZBDevice needsSimulation]) {
             [ZBDevice uicache:arguments observer:self];
-        }
-        else {
+        } else {
             [self writeToConsole:@"uicache is not available on the simulator\n" atLevel:ZBLogLevelWarning];
         }
     }
     
-    [self removeAllDebs];
+    preventCancel = NO;
     [self updateStatus:ZBStageDone];
     [self updateCompleteButton];
+    [self updateCancelOrCloseButton];
 }
 
 - (void)updateCompleteButton {
-    [self.navigationItem setHidesBackButton:YES animated:NO];
     dispatch_async(dispatch_get_main_queue(), ^{
-        self->_completeButton.hidden = false;
+        self->_completeButton.hidden = NO;
         self->_progressText.text = nil;
-        
         if (self->hasZebraUpdated) {
-            [self addCloseButton];
             [self->_completeButton setTitle:@"Close Zebra" forState:UIControlStateNormal];
             [self->_completeButton addTarget:self action:@selector(closeZebra) forControlEvents:UIControlEventTouchUpInside];
-        }
-        else if (self->needsRespring) {
-            [self addCloseButton];
+        } else if (self->needsRespring) {
             [self->_completeButton setTitle:@"Restart SpringBoard" forState:UIControlStateNormal];
             [self->_completeButton addTarget:self action:@selector(restartSpringBoard) forControlEvents:UIControlEventTouchUpInside];
-        }
-        else {
+        } else {
             [self->_completeButton setTitle:@"Done" forState:UIControlStateNormal];
         }
     });
 }
 
-- (void)addCloseButton {
-    if (self->hasZebraUpdated) {
+- (void)cancel {
+    if (preventCancel) {
         return;
     }
-    UIBarButtonItem *closeButton = [[UIBarButtonItem alloc] initWithTitle:@"Close" style:UIBarButtonItemStylePlain target:self action:@selector(goodbye)];
-    self.navigationController.navigationBar.tintColor = [UIColor whiteColor];
-    self.navigationItem.rightBarButtonItem = closeButton;
-}
-
-- (void)cancel {
-    [self.navigationItem setHidesBackButton:YES animated:NO];
     [downloadManager stopAllDownloads];
     [downloadingMap removeAllObjects];
-    self.navigationItem.leftBarButtonItem = nil;
     _progressView.progress = 1;
     _progressView.hidden = YES;
     _progressText.text = nil;
     _progressText.hidden = YES;
-    [self addCloseButton];
     [queue clearQueue];
     [self removeAllDebs];
-}
-
-- (void)goodbye {
-    [self clearConsole];
-    [self dismissViewControllerAnimated:true completion:nil];
+    [self updateCancelOrCloseButton];
 }
 
 - (void)closeZebra {
@@ -423,8 +395,7 @@ typedef enum {
         if ([str rangeOfString:@"warning"].location != NSNotFound) {
             str = [str stringByReplacingOccurrencesOfString:@"dpkg: " withString:@""];
             [self writeToConsole:str atLevel:ZBLogLevelWarning];
-        }
-        else if ([str rangeOfString:@"error"].location != NSNotFound) {
+        } else if ([str rangeOfString:@"error"].location != NSNotFound) {
             str = [str stringByReplacingOccurrencesOfString:@"dpkg: " withString:@""];
             [self writeToConsole:str atLevel:ZBLogLevelError];
         }
@@ -472,8 +443,35 @@ typedef enum {
     _consoleView.text = nil;
 }
 
+- (void)updateCancelOrCloseButton {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (self->preventCancel) {
+            self.cancelOrCloseButton.hidden = YES;
+        } else if (self->stage == ZBStageDone) {
+            self.cancelOrCloseButton.hidden = self->hasZebraUpdated;
+            [self.cancelOrCloseButton setTitle:@"Close" forState:UIControlStateNormal];
+        } else {
+            self.cancelOrCloseButton.hidden = NO;
+            [self.cancelOrCloseButton setTitle:@"Cancel" forState:UIControlStateNormal];
+        }
+    });
+}
+
+- (void)close {
+    [self clearConsole];
+    [self dismissViewControllerAnimated:YES completion:nil];
+}
+
 - (IBAction)complete:(id)sender {
-    [self goodbye];
+    [self close];
+}
+
+- (IBAction)cancelOrClose:(id)sender {
+    if (stage == ZBStageDone) {
+        [self close];
+    } else {
+        [self cancel];
+    }
 }
 
 #pragma mark - Hyena Delegate
@@ -494,14 +492,15 @@ typedef enum {
     if (filenames.count) {
         NSArray *debs = [filenames objectForKey:@"debs"];
         [self performSelectorInBackground:@selector(performActions:) withObject:debs];
-    }
-    else {
-        continueWithActions = false;
+    } else {
+        continueWithActions = NO;
         [self cancel];
         [self writeToConsole:@"Nothing has been downloaded.\n" atLevel:ZBLogLevelWarning];
         [self updateStatus:ZBStageDone];
         [self updateCompleteButton];
     }
+    preventCancel = YES;
+    self.cancelOrCloseButton.hidden = YES;
 }
 
 - (void)predator:(nonnull ZBDownloadManager *)downloadManager startedDownloadForFile:(nonnull NSString *)filename {
@@ -510,10 +509,9 @@ typedef enum {
 
 - (void)predator:(nonnull ZBDownloadManager *)downloadManager finishedDownloadForFile:(NSString *_Nullable)filename withError:(NSError * _Nullable)error {
     if (error != NULL) {
-        continueWithActions = false;
+        continueWithActions = NO;
         [self writeToConsole:[error.localizedDescription stringByAppendingString:@"\n"] atLevel:ZBLogLevelError];
-    }
-    else if (filename) {
+    } else if (filename) {
         [self writeToConsole:[NSString stringWithFormat:@"Done %@\n", filename] atLevel:ZBLogLevelDescript];
     }
 }
@@ -530,14 +528,10 @@ typedef enum {
 
 - (void)databaseCompletedUpdate:(int)packageUpdates {
     [self writeToConsole:@"Finished importing local packages.\n" atLevel:ZBLogLevelInfo];
-    
-    NSLog(@"[Zebra] %d updates available.", packageUpdates);
-    
+    ZBLog(@"[Zebra] %d updates available.", packageUpdates);
     if (packageUpdates != -1) {
-        ZBTabBarController *tabController = (ZBTabBarController *)[[[UIApplication sharedApplication] delegate] window].rootViewController;
-        [tabController setPackageUpdateBadgeValue:packageUpdates];
+        [[ZBAppDelegate tabBarController] setPackageUpdateBadgeValue:packageUpdates];
     }
-    
     [self finishUp];
 }
 

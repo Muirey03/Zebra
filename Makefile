@@ -11,8 +11,10 @@ after-stage::
 	mkdir -p $(THEOS_STAGING_DIR)/usr/libexec/zebra
 	mv $(THEOS_OBJ_DIR)/supersling $(THEOS_STAGING_DIR)/usr/libexec/zebra
 	rm -rf $(THEOS_STAGING_DIR)/Applications/Zebra.app/embedded.mobileprovision
+	rm -rf $(THEOS_STAGING_DIR)/Applications/Zebra.app/Installed.pack
 	ldid -S $(THEOS_STAGING_DIR)/Applications/Zebra.app/Zebra
 	ldid -S $(THEOS_STAGING_DIR)/Applications/Zebra.app/Frameworks/SDWebImage.framework/SDWebImage
+	ldid -S $(THEOS_STAGING_DIR)/Applications/Zebra.app/Frameworks/LNPopupController.framework/LNPopupController
 	ldid -SZebra/Zebra.entitlements $(THEOS_STAGING_DIR)/Applications/Zebra.app/Zebra
 
 after-install::

@@ -32,13 +32,12 @@
     return [[ZBRepoManager sharedInstance] repos][@(repoID)];
 }
 
-+ (ZBRepo *)localRepo {
++ (ZBRepo *)localRepo:(int)repoID {
     ZBRepo *local = [[ZBRepo alloc] init];
     [local setOrigin:@"Local Repository"];
     [local setDesc:@"Locally installed packages"];
-    [local setRepoID:0];
+    [local setRepoID:repoID];
     [local setBaseFileName:@"/var/lib/dpkg/status"];
-    
     return local;
 }
 
@@ -83,11 +82,9 @@
         NSString *url = [baseURL stringByAppendingPathComponent:@"CydiaIcon.png"];
         if ([url hasPrefix:@"http://"] || [url hasPrefix:@"https://"]) {
             iconURL = [NSURL URLWithString:url];
-        }
-        else if (secure) {
+        } else if (secure) {
             iconURL = [NSURL URLWithString:[NSString stringWithFormat:@"https://%@", url]];
-        }
-        else {
+        } else {
             iconURL = [NSURL URLWithString:[NSString stringWithFormat:@"http://%@", url]];
         }
         
@@ -106,8 +103,7 @@
             NSString *requestURL;
             if ([baseURL hasSuffix:@"/"]) {
                 requestURL = [NSString stringWithFormat:@"https://%@payment_endpoint", baseURL];
-            }
-            else {
+            } else {
                 requestURL = [NSString stringWithFormat:@"https://%@/payment_endpoint", baseURL];
             }
             NSURL *url = [NSURL URLWithString:requestURL];
@@ -123,7 +119,6 @@
                             keychain[baseURL] = endpoint;
                             [self setSupportSileoPay:YES];
                         }
-                        
                     }] resume];
         }
         // prevent constant network spam
@@ -132,8 +127,7 @@
             NSString *requestURL;
             if ([baseURL hasSuffix:@"/"]) {
                 requestURL = [NSString stringWithFormat:@"https://%@sileo-featured.json", baseURL];
-            }
-            else {
+            } else {
                 requestURL = [NSString stringWithFormat:@"https://%@/sileo-featured.json", baseURL];
             }
             NSURL *checkingURL = [NSURL URLWithString:requestURL];
@@ -146,7 +140,6 @@
                         if (data != nil && (long)[httpResponse statusCode] != 404) {
                             [self setSupportsFeaturedPackages:YES];
                         }
-                        
                     }] resume];
             [self setCheckedSupportFeaturedPackages:YES];
         }

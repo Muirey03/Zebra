@@ -98,14 +98,17 @@
         if ([databaseManager isDatabaseBeingUpdated]) {
             [refreshControl removeFromSuperview];
             self.refreshControl = nil;
-        }
-        else {
+        } else {
             self.refreshControl = refreshControl;
         }
     }
 }
 
 - (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
+    return UITableViewAutomaticDimension;
+}
+
+- (CGFloat)tableView:(UITableView *)tableView estimatedHeightForRowAtIndexPath:(NSIndexPath *)indexPath {
     return 65;
 }
 

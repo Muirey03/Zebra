@@ -6,12 +6,11 @@
 //  Copyright © 2018 Wilson Styres. All rights reserved.
 //
 
-#import "NSTask.h"
-#import "UIProgressHUD.h"
 #import "ZBAppDelegate.h"
 #import "ZBTabBarController.h"
-#import "ZBTab.h"
-#import "ZBDevice.h"
+#import <ZBTab.h>
+#import <ZBDevice.h>
+#import <ZBSettings.h>
 #import <UserNotifications/UserNotifications.h>
 #import <Packages/Controllers/ZBExternalPackageTableViewController.h>
 #import <UIColor+GlobalColors.h>
@@ -37,8 +36,7 @@ static const NSInteger kZebraMaxTime = 60 * 60 * 24; // 1 day
     NSString *path_ = nil;
     if (![ZBDevice needsSimulation]) {
         path_ = @"/var/mobile/Library/Application Support";
-    }
-    else {
+    } else {
         path_ = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES)[0];
     }
     NSString *path = [path_ stringByAppendingPathComponent:[self bundleID]];
@@ -47,7 +45,7 @@ static const NSInteger kZebraMaxTime = 60 * 60 * 24; // 1 day
     if (!dirExists) {
         NSLog(@"[Zebra] Creating documents directory.");
         NSError *error;
-        [[NSFileManager defaultManager] createDirectoryAtPath:path withIntermediateDirectories:true attributes:nil error:&error];
+        [[NSFileManager defaultManager] createDirectoryAtPath:path withIntermediateDirectories:YES attributes:nil error:&error];
         
         if (error != NULL) {
             [self sendErrorToTabController:[NSString stringWithFormat:@"Error while creating documents directory: %@.", error.localizedDescription]];
@@ -65,7 +63,7 @@ static const NSInteger kZebraMaxTime = 60 * 60 * 24; // 1 day
     if (!dirExists) {
         NSLog(@"[Zebra] Creating lists directory.");
         NSError *error;
-        [[NSFileManager defaultManager] createDirectoryAtPath:lists withIntermediateDirectories:true attributes:nil error:&error];
+        [[NSFileManager defaultManager] createDirectoryAtPath:lists withIntermediateDirectories:YES attributes:nil error:&error];
         
         if (error != NULL) {
             [self sendErrorToTabController:[NSString stringWithFormat:@"Error while creating lists directory: %@.", error.localizedDescription]];
@@ -105,7 +103,7 @@ static const NSInteger kZebraMaxTime = 60 * 60 * 24; // 1 day
     if (!dirExists) {
         NSLog(@"[Zebra] Creating debs directory.");
         NSError *error;
-        [[NSFileManager defaultManager] createDirectoryAtPath:debs withIntermediateDirectories:true attributes:nil error:&error];
+        [[NSFileManager defaultManager] createDirectoryAtPath:debs withIntermediateDirectories:YES attributes:nil error:&error];
         
         if (error != NULL) {
             [self sendErrorToTabController:[NSString stringWithFormat:@"Error while creating debs directory: %@.", error.localizedDescription]];
@@ -115,8 +113,12 @@ static const NSInteger kZebraMaxTime = 60 * 60 * 24; // 1 day
     return debs;
 }
 
++ (ZBTabBarController *)tabBarController {
+    return (ZBTabBarController *)((ZBAppDelegate *)[[UIApplication sharedApplication] delegate]).window.rootViewController;
+}
+
 + (void)sendErrorToTabController:(NSString *)error blockAction:(NSString *)action block:(void (^)(void))block {
-    ZBTabBarController *tabController = (ZBTabBarController *)((ZBAppDelegate *)[[UIApplication sharedApplication] delegate]).window.rootViewController;
+    ZBTabBarController *tabController = [self tabBarController];
     if (tabController != NULL) {
         dispatch_async(dispatch_get_main_queue(), ^{
             UIAlertController *errorAlert = [UIAlertController alertControllerWithTitle:@"An Error Occured" message:error preferredStyle:UIAlertControllerStyleAlert];
@@ -129,13 +131,27 @@ static const NSInteger kZebraMaxTime = 60 * 60 * 24; // 1 day
             }
             UIAlertAction *okAction = [UIAlertAction actionWithTitle:@"Dismiss" style:UIAlertActionStyleCancel handler:nil];
             [errorAlert addAction:okAction];
-            [tabController presentViewController:errorAlert animated:true completion:nil];
+            [tabController presentViewController:errorAlert animated:YES completion:nil];
         });
     }
 }
 
 + (void)sendErrorToTabController:(NSString *)error {
     [self sendErrorToTabController:error blockAction:nil block:NULL];
+}
+
+- (void)setDefaultValues {
+    NSUserDefaults *settings = [NSUserDefaults standardUserDefaults];
+    if (![settings objectForKey:liveSearchKey]) {
+        [settings setBool:YES forKey:liveSearchKey];
+    }
+    if (![settings objectForKey:wantsFeaturedKey]) {
+        [settings setBool:YES forKey:wantsFeaturedKey];
+    }
+    if (![settings objectForKey:wantsNewsKey]) {
+        [settings setBool:YES forKey:wantsNewsKey];
+    }
+    [settings synchronize];
 }
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
@@ -151,8 +167,7 @@ static const NSInteger kZebraMaxTime = 60 * 60 * 24; // 1 day
                 NSLog(@"[Zebra] Error: %@", error.localizedDescription);
             } else if (!granted) {
                 NSLog(@"[Zebra] Authorization was not granted.");
-            }
-            else {
+            } else {
                 NSLog(@"[Zebra] Notification access granted.");
             }
         }];
@@ -163,6 +178,7 @@ static const NSInteger kZebraMaxTime = 60 * 60 * 24; // 1 day
     }
     
     UIApplication.sharedApplication.delegate.window.tintColor = [UIColor tintColor];
+    [self setDefaultValues];
     return YES;
 }
 
@@ -181,10 +197,9 @@ static const NSInteger kZebraMaxTime = 60 * 60 * 24; // 1 day
                     external.fileURL = url;
                     
                     [self.window.rootViewController.presentedViewController dismissViewControllerAnimated:NO completion:nil];
-                    [self.window.rootViewController presentViewController:vc animated:true completion:nil];
+                    [self.window.rootViewController presentViewController:vc animated:YES completion:nil];
                 }
-            }
-            else if ([[url pathExtension] isEqualToString:@"list"] || [[url pathExtension] isEqualToString:@"sources"]) {
+            } else if ([[url pathExtension] isEqualToString:@"list"] || [[url pathExtension] isEqualToString:@"sources"]) {
                 ZBTabBarController *tabController = (ZBTabBarController *)self.window.rootViewController;
                 [tabController setSelectedIndex:ZBTabSources];
                 
@@ -222,10 +237,9 @@ static const NSInteger kZebraMaxTime = 60 * 60 * 24; // 1 day
                         ZBPackageDepictionViewController *packageController = [[ZBPackageDepictionViewController alloc] initWithPackageID:packageID];
                         if (packageController) {
                             UINavigationController *navController = [[UINavigationController alloc] initWithRootViewController:packageController];
-                            [tabController presentViewController:navController animated:true completion:nil];
+                            [tabController presentViewController:navController animated:YES completion:nil];
                         }
-                    }
-                    else {
+                    } else {
                         [tabController setSelectedIndex:ZBTabPackages];
                     }
                     break;
@@ -258,7 +272,7 @@ static const NSInteger kZebraMaxTime = 60 * 60 * 24; // 1 day
                         ZBPackageDepictionViewController *packageController = [[ZBPackageDepictionViewController alloc] initWithPackageID:packageID];
                         if (packageController) {
                             UINavigationController *navController = [[UINavigationController alloc] initWithRootViewController:packageController];
-                            [tabController presentViewController:navController animated:true completion:nil];
+                            [tabController presentViewController:navController animated:YES completion:nil];
                         }
                     }
                     break;
@@ -309,11 +323,11 @@ static const NSInteger kZebraMaxTime = 60 * 60 * 24; // 1 day
             
         }
         default: { // WHO ARE YOU????
-            return false;
+            return NO;
         }
     }
     
-    return true;
+    return YES;
 }
 
 - (void)application:(UIApplication *)application performActionForShortcutItem:(UIApplicationShortcutItem *)shortcutItem completionHandler:(void (^)(BOOL))completionHandler {
@@ -323,8 +337,7 @@ static const NSInteger kZebraMaxTime = 60 * 60 * 24; // 1 day
         
         ZBSearchViewController *searchController = (ZBSearchViewController *)((UINavigationController *)[tabController selectedViewController]).viewControllers[0];
         [searchController handleURL:NULL];
-    }
-    else if ([shortcutItem.type isEqualToString:@"Add"]) {
+    } else if ([shortcutItem.type isEqualToString:@"Add"]) {
         [tabController setSelectedIndex:ZBTabSources];
         
         ZBRepoListTableViewController *repoController = (ZBRepoListTableViewController *)((UINavigationController *)[tabController selectedViewController]).viewControllers[0];

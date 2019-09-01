@@ -20,7 +20,6 @@
 @import SDWebImage;
 
 @interface ZBRepoSectionsListTableViewController ()
-
 @end
 
 @implementation ZBRepoSectionsListTableViewController
@@ -73,9 +72,8 @@
     }
     self.title = [repo origin];
     if (@available(iOS 10.0, *)) {
-        self.automaticallyAdjustsScrollViewInsets = false;
-    }
-    else {
+        self.automaticallyAdjustsScrollViewInsets = NO;
+    } else {
         CGFloat top = self.navigationController.navigationBar.bounds.size.height;
         self.tableView.contentInset = UIEdgeInsetsMake(top + 20, 0, 64, 0);
     }
@@ -100,8 +98,7 @@
     if (self.repoEndpoint) {
         if (![self checkAuthenticated]) {
             [self.navigationItem setRightBarButtonItem:self.login];
-        }
-        else {
+        } else {
             [self.navigationItem setRightBarButtonItem:self.purchased];
         }
     }
@@ -124,8 +121,7 @@
         NSString *requestURL;
         if ([repo.baseURL hasSuffix:@"/"]) {
             requestURL = [NSString stringWithFormat:@"https://%@sileo-featured.json", repo.baseURL];
-        }
-        else {
+        } else {
             requestURL = [NSString stringWithFormat:@"https://%@/sileo-featured.json", repo.baseURL];
         }
         NSURL *checkingURL = [NSURL URLWithString:requestURL];
@@ -145,7 +141,6 @@
                     }
                     
                 }] resume];
-        
     }
 }
 
@@ -199,25 +194,15 @@
                                     });
                                     // [self.repo setLoggedIn:YES];
                                     [self.navigationItem setRightBarButtonItem:self.purchased];
-                                }
-                                else {
+                                } else {
                                     return;
                                 }
                                 
                                 
                             }];
             [session start];
-        }
-        else {
-            SFSafariViewController *safariVC = [[SFSafariViewController alloc] initWithURL:destinationUrl];
-            safariVC.delegate = self;
-            if (@available(iOS 10.0, *)) {
-                [safariVC setPreferredBarTintColor:[UIColor tableViewBackgroundColor]];
-                [safariVC setPreferredControlTintColor:[UIColor tintColor]];
-            } else {
-                [safariVC.view setTintColor:[UIColor tintColor]];
-            }
-            [self presentViewController:safariVC animated:YES completion:nil];
+        } else {
+            [ZBDevice openURL:destinationUrl delegate:self];
         }
         
     }
@@ -280,8 +265,7 @@
         
         NSNumber *numberOfPackages = [NSNumber numberWithInt:[databaseManager numberOfPackagesInRepo:repo section:NULL]];
         cell.detailTextLabel.text = [numberFormatter stringFromNumber:numberOfPackages];
-    }
-    else {
+    } else {
         NSString *section = [sectionNames objectAtIndex:indexPath.row - 1];
         cell.textLabel.text = [section stringByReplacingOccurrencesOfString:@"_" withString:@" "];
         
@@ -300,8 +284,7 @@
         destination.package = [databaseManager topVersionForPackageID:packageID];
         [databaseManager closeDatabase];
         destination.view.backgroundColor = [UIColor tableViewBackgroundColor];
-    }
-    else {
+    } else {
         ZBPackageListTableViewController *destination = [segue destinationViewController];
         UITableViewCell *cell = (UITableViewCell *)sender;
         destination.repo = repo;
@@ -311,8 +294,7 @@
             NSString *section = [sectionNames objectAtIndex:indexPath.row - 1];
             destination.section = section;
             destination.title = section;
-        }
-        else {
+        } else {
             destination.title = @"All Packages";
         }
     }
@@ -323,7 +305,7 @@
 - (NSArray *)previewActionItems {
     UIPreviewAction *refresh = [UIPreviewAction actionWithTitle:@"Refresh" style:UIPreviewActionStyleDefault handler:^(UIPreviewAction * _Nonnull action, UIViewController * _Nonnull previewViewController) {
 //        ZBDatabaseManager *databaseManager = [[ZBDatabaseManager alloc] init];
-//        [databaseManager updateDatabaseUsingCaching:true singleRepo:self->repo completion:^(BOOL success, NSError * _Nonnull error) {
+//        [databaseManager updateDatabaseUsingCaching:YES singleRepo:self->repo completion:^(BOOL success, NSError * _Nonnull error) {
 //            NSLog(@"Updated repo %@", self->repo);
 //        }];
     }];

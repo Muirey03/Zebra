@@ -8,12 +8,14 @@
 
 #import <ZBLog.h>
 #import <ZBAppDelegate.h>
+#import <ZBSettings.h>
 #import "ZBChangesTableViewController.h"
 #import <Database/ZBDatabaseManager.h>
 #import <Packages/Helpers/ZBPackage.h>
 #import <Packages/Helpers/ZBPackageActionsManager.h>
 #import <Packages/Views/ZBPackageTableViewCell.h>
 #import <Packages/Controllers/ZBPackageDepictionViewController.h>
+#import "ZBRedditPosts.h"
 @import SDWebImage;
 
 @interface ZBChangesTableViewController () {
@@ -60,9 +62,8 @@
 }
 
 - (void)startSettingHeader  {
-    // NSLog(@"Running");
     self.tableView.tableHeaderView.frame = CGRectMake(self.tableView.tableHeaderView.frame.origin.x, self.tableView.tableHeaderView.frame.origin.y, self.tableView.tableHeaderView.frame.size.width, CGFLOAT_MIN);
-    if ([defaults boolForKey:@"wantsNews"]) {
+    if ([defaults boolForKey:wantsNewsKey]) {
         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
             // [self retrieveNewsJson];
             [self kickStartReddit];
@@ -74,8 +75,7 @@
     NSDate *creationDate = [defaults objectForKey:@"redditCheck"];
     if (!creationDate) {
         [self getRedditToken];
-    }
-    else {
+    } else {
         double seconds = [[NSDate date] timeIntervalSinceDate:creationDate];
         if (seconds > 3500) {
             [self getRedditToken];
@@ -124,19 +124,16 @@
     [request setValue:[NSString stringWithFormat:@"Bearer %@", [defaults valueForKey:@"redditToken"]] forHTTPHeaderField:@"Authorization"];
     [[[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
         if (data) {
-            NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:kNilOptions error:nil];
-            // NSLog(@"DIcT %@", json);
-            NSDictionary *dataDict = [json objectForKey:@"data"];
-            // NSLog(@"DataDict %@", dataDict);
-            for (NSDictionary *dict in [dataDict objectForKey:@"children"]) {
-                NSDictionary *postData = [dict objectForKey:@"data"];
-                // NSLog(@"POST DATA %@", postData);
-                if ([postData objectForKey:@"title"] != [NSNull null]) {
-                    // if ([[postData objectForKey:@"link_flair_css_class"] isEqualToString:@"release"] || [[postData objectForKey:@"link_flair_css_class"] isEqualToString:@"update"] || [[postData objectForKey:@"link_flair_css_class"] isEqualToString:@"upcoming"] || [[postData objectForKey:@"link_flair_css_class"] isEqualToString:@"news"] || [[postData objectForKey:@"link_flair_css_class"] isEqualToString:@"jailbreak release"]) {
-                    NSArray *post = [self getTags:[postData valueForKey:@"title"]];
+            //NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:kNilOptions error:nil];
+            NSError *err;
+            ZBRedditPosts *redditPosts = [ZBRedditPosts fromData:data error:&err];
+            NSLog(@"Hello %@", redditPosts.kind);
+            for (ZBChild *child in redditPosts.data.children) {
+                if (child.data.title != nil) {
+                    NSArray *post = [self getTags:child.data.title];
                     for (NSString *string in self->availableOptions) {
-                        if ([post containsObject:string] && ![self.redditPosts containsObject:postData]) {
-                            [self.redditPosts addObject:postData];
+                        if ([post containsObject:string] && ![self.redditPosts containsObject:child.data]) {
+                            [self.redditPosts addObject:child.data];
                             // NSLog(@"redditposts %@", self.redditPosts);
                         }
                     }
@@ -231,14 +228,6 @@
     return [self tableView:tableView numberOfRowsInSection:section] ? 30 : 0;
 }
 
-- (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath {
-    return UITableViewAutomaticDimension;
-}
-
-- (CGFloat)tableView:(UITableView *)tableView estimatedHeightForRowAtIndexPath:(NSIndexPath *)indexPath {
-    return 65;
-}
-
 - (NSArray *)partitionObjects:(NSArray *)array collationStringSelector:(SEL)selector {
     NSMutableDictionary <NSDate *, NSMutableArray *> *partitions = [NSMutableDictionary new];
     for (ZBPackage *package in packages) {
@@ -261,7 +250,7 @@
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
-    if ([[self objectAtSection:section] count]) {
+    if ([(NSArray *)[self objectAtSection:section] count]) {
         return [NSDateFormatter localizedStringFromDate:sectionIndexTitles[section] dateStyle:NSDateFormatterShortStyle timeStyle:NSDateFormatterMediumStyle];
     }
     return nil;
@@ -272,7 +261,7 @@
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    return [[self objectAtSection:section] count];
+    return [(NSArray *)[self objectAtSection:section] count];
 }
 
 - (void)tableView:(UITableView *)tableView willDisplayCell:(ZBPackageTableViewCell *)cell forRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -366,18 +355,17 @@
 #pragma mark News
 - (UICollectionViewCell *)collectionView:(nonnull UICollectionView *)collectionView cellForItemAtIndexPath:(nonnull NSIndexPath *)indexPath {
     ZBNewsCollectionViewCell *cell = [collectionView dequeueReusableCellWithReuseIdentifier:@"newsCell" forIndexPath:indexPath];
-    NSDictionary *dict = [self.redditPosts objectAtIndex:indexPath.row];
+    ZBChildData *post = [self.redditPosts objectAtIndex:indexPath.row];
     NSURL *url;
-    if ([dict valueForKey:@"title"] != [NSNull null]) {
-        NSString *text = [self stripTag:[dict valueForKey:@"title"]];
-        text = [text stringByRemovingPercentEncoding];
+    if (post.title != nil) {
+        NSString *text = post.title;
         text = [text stringByReplacingOccurrencesOfString:@"&amp;" withString:@"&"];
         text = [text stringByReplacingOccurrencesOfString:@"&gt;" withString:@">"];
         text = [text stringByReplacingOccurrencesOfString:@"&lt;" withString:@"<"];
         cell.postTitle.text = text;
         
         NSMutableArray *tags = [NSMutableArray new];
-        for (NSString *string in [self getTags:[dict valueForKey:@"title"]]) {
+        for (NSString *string in [self getTags:post.title]) {
             if ([availableOptions containsObject:string]) {
                 [tags addObject:string];
             }
@@ -387,33 +375,36 @@
     } else {
         cell.postTitle.text = @"Error";
     }
-    if ([dict objectForKey:@"url"] != [NSNull null]) {
+    if (post.url != nil) {
         // [cell setRedditLink:[NSURL URLWithString:[dict objectForKey:@"url"]]];
-        [cell setRedditLink:[NSURL URLWithString:[NSString stringWithFormat:@"https://reddit.com/%@", [dict objectForKey:@"id"]]]];
-        [cell setRedditID:[dict objectForKey:@"id"]];
+        [cell setRedditLink:[NSURL URLWithString:[NSString stringWithFormat:@"https://reddit.com/%@", post.identifier]]];
+        [cell setRedditID:post.identifier];
     } else {
         [cell setRedditLink:[NSURL URLWithString:@"https://reddit.com/r/jailbreak"]];
     }
-    if ([dict objectForKey:@"preview"]) {
-        NSDictionary *previews = [dict objectForKey:@"preview"];
-        if ([previews objectForKey:@"images"]) {
-            NSArray *images = [previews objectForKey:@"images"];
-            NSDictionary *imageDict = [images firstObject];
-            // ZBLog(@"IMAGE %@", imageDict);
-            if ([imageDict objectForKey:@"source"] && [imageDict objectForKey:@"source"] != [NSNull null]) {
-                NSString *link = [imageDict valueForKeyPath:@"source.url"];
-                link = [link stringByReplacingOccurrencesOfString:@"&amp;" withString:@"&"];
-                url = [NSURL URLWithString:link];
-                /*url = [NSURL URLWithString:[[imageDict valueForKeyPath:@"source.url"] stringByReplacingOccurrencesOfString:@"&amp;" withString:@"&"]];*/
-            }
+    
+    //NSDictionary *previews = [dict objectForKey:@"preview"];
+    if (post.preview.images.count) {
+        //NSArray *images = [previews objectForKey:@"images"];
+        //NSDictionary *imageDict = [images firstObject];
+        ZBImage *first = post.preview.images[0];
+        // ZBLog(@"IMAGE %@", imageDict);
+        if (first.source != nil) {
+            NSString *link = first.source.url;
+            link = [link stringByReplacingOccurrencesOfString:@"&amp;" withString:@"&"];
+            url = [NSURL URLWithString:link];
+            /*url = [NSURL URLWithString:[[imageDict valueForKeyPath:@"source.url"] stringByReplacingOccurrencesOfString:@"&amp;" withString:@"&"]];*/
         }
     }
+    
+    //if ([dict valueForKey:@"thumbnail"] != [NSNull null] && ([[dict valueForKey:@"thumbnail"] isEqualToString:@"self"] || [[dict valueForKey:@"thumbnail"] isEqualToString:@"default"] || [[dict valueForKey:@"thumbnail"] isEqualToString:@"nsfw"])) {
+    
     if (url) {
         [cell.backgroundImage sd_setImageWithURL:url placeholderImage:[UIImage imageNamed:@"Unknown"]];
-    }else if ([dict valueForKey:@"thumbnail"] != [NSNull null] && ([[dict valueForKey:@"thumbnail"] isEqualToString:@"self"] || [[dict valueForKey:@"thumbnail"] isEqualToString:@"default"] || [[dict valueForKey:@"thumbnail"] isEqualToString:@"nsfw"])) {
+    }else if (post.thumbnail != nil && ([post.thumbnail isEqualToString:@"self"] || [post.thumbnail isEqualToString:@"default"] || [post.thumbnail isEqualToString:@"nsfw"])) {
         [cell.backgroundImage setImage:[UIImage imageNamed:@"banner"]];
     } else {
-        [cell.backgroundImage sd_setImageWithURL:[NSURL URLWithString:[dict valueForKey:@"thumbnail"]] placeholderImage:[UIImage imageNamed:@"Unknown"]];
+        [cell.backgroundImage sd_setImageWithURL:[NSURL URLWithString:post.thumbnail] placeholderImage:[UIImage imageNamed:@"Unknown"]];
     }
     return cell;
 }
@@ -467,7 +458,7 @@
     if ([application canOpenURL:[NSURL URLWithString:[NSString stringWithFormat:@"apollo://reddit.com/%@", cell.redditID]]]) {
         [application openURL:[NSURL URLWithString:[NSString stringWithFormat:@"apollo://reddit.com/%@", cell.redditID]]];
     } else {
-        SFSafariViewController *safariVC = [[SFSafariViewController alloc]initWithURL:cell.redditLink entersReaderIfAvailable:NO];
+        SFSafariViewController *safariVC = [[SFSafariViewController alloc] initWithURL:cell.redditLink entersReaderIfAvailable:NO];
         safariVC.delegate = self;
         if (@available(iOS 10.0, *)) {
             [safariVC setPreferredBarTintColor:[UIColor tableViewBackgroundColor]];
@@ -480,7 +471,7 @@
 }
 
 - (void)toggleNews {
-    if ([defaults boolForKey:@"wantsNews"]) {
+    if ([defaults boolForKey:wantsNewsKey]) {
         [self retrieveNewsJson];
     } else {
         [self.redditPosts removeAllObjects];
